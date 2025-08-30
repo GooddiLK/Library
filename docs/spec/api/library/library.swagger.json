@@ -247,7 +247,7 @@
         "name": {
           "type": "string"
         },
-        "authorIds": {
+        "authorId": {
           "type": "array",
           "items": {
             "type": "string"
@@ -277,6 +277,14 @@
           "items": {
             "type": "string"
           }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     },
@@ -338,7 +346,7 @@
         "name": {
           "type": "string"
         },
-        "authorId": {
+        "authorIds": {
           "type": "array",
           "items": {
             "type": "string"

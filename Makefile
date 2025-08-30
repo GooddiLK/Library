@@ -1,8 +1,8 @@
 CURDIR=$(shell pwd)
 LOCAL_BIN := $(CURDIR)/bin
 EASYP_BIN := $(LOCAL_BIN)/easyp
-GOLANGCI_BIN := $(LOCAL_BIN)/golangci-lint
 GOIMPORTS_BIN := $(LOCAL_BIN)/goimports
+GOLANGCI_BIN := $(LOCAL_BIN)/golangci-lint
 GO_TEST=$(LOCAL_BIN)/gotest
 GO_TEST_ARGS=-race -v -tags=integration_test ./...
 PROTOC_DOWNLOAD_LINK="https://github.com/protocolbuffers/protobuf/releases"
@@ -13,7 +13,7 @@ UNAME_P := $(shell uname -p)
 ARCH :=
 
 ifeq ($(UNAME_S),Linux)
-    INSTALL_CMD = sudo apt install -y protobuf-compiler
+    INSTALL_CMD = sudo -S apt install -y protobuf-compiler
     ARCH = linux-x86_64
 endif
 
@@ -52,6 +52,7 @@ build:
 bin-deps: .bin-deps
 
 .bin-deps: export GOBIN := $(LOCAL_BIN)
+
 .bin-deps: .create-bin .install-protoc
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.5 && \
 	go install github.com/rakyll/gotest@v0.0.6 && \
@@ -69,7 +70,7 @@ bin-deps: .bin-deps
 	rm -rf ./bin
 	mkdir -p ./bin
 
-generate: bin-deps .generate
+generate: bin-deps .generate build
 fast-generate: .generate
 
 .generate:
@@ -83,9 +84,9 @@ fast-generate: .generate
 
 	rm -rf ~/.easyp/
 
+
 	(PATH="$(PATH):$(LOCAL_BIN)" && go generate ./...)
 	(PATH="$(PATH):$(LOCAL_BIN)" && $(EASYP_BIN) mod download && $(EASYP_BIN) generate)
-
 	go mod tidy
-
 	$(GOIMPORTS_BIN) -w .
+

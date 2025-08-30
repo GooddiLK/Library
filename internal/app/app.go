@@ -9,6 +9,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/project/library/db"
+
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/project/library/config"
 	generated "github.com/project/library/generated/api/library"
@@ -27,7 +30,17 @@ func Run(logger *zap.Logger, cfg *config.Config) {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	repo := repository.NewInMemoryRepository()
+	dbPool, err := pgxpool.New(ctx, cfg.PG.URL)
+	if err != nil {
+		logger.Error("can not create pgxpool", zap.Error(err))
+		return
+	}
+
+	defer dbPool.Close()
+
+	db.SetupPostgres(dbPool, logger)
+
+	repo := repository.NewPostgresRepository(dbPool, logger)
 	useCases := library.New(logger, repo, repo)
 
 	// Создание самого сервера

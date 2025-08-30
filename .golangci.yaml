@@ -74,7 +74,7 @@ linters:
     - perfsprint
     - prealloc
     - protogetter
-    - tenv
+    - usetesting
     - testifylint
     - tparallel
     - usestdlibvars
@@ -95,7 +95,7 @@ issues:
     - \.pb\.goclay\.go$
     - \.pb\.validate\.go$
     - \_mock_test\.go$
-    - \_test\.go$
+    - integration_test\.go$
     - doc.go$
   exclude-rules:
     - path: _test\.go
