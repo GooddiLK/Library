@@ -1,21 +1,14 @@
 package entity
 
-import (
-	"time"
-
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-)
+import "github.com/pkg/errors"
 
 type Book struct {
 	ID        string
 	Name      string
 	AuthorIDs []string
-	CreatedAt time.Time
-	UpdatedAt time.Time
 }
 
 var (
-	ErrBookNotFound      = status.Error(codes.NotFound, "book not found")
-	ErrBookAlreadyExists = status.Error(codes.AlreadyExists, "book already exists")
+	ErrBookNotFound      = errors.New("book not found")
+	ErrBookAlreadyExists = errors.New("book already exists")
 )

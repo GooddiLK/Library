@@ -10,23 +10,23 @@ import (
 
 //go:generate mockgen_uber -source=interfaces.go -destination=mocks/library_mock.go -package=mocks
 
-var _ AuthorUseCase = (*libraryImpl)(nil)
-var _ BooksUseCase = (*libraryImpl)(nil)
-
 type (
 	AuthorUseCase interface {
-		RegisterAuthor(ctx context.Context, authorName string) (*entity.Author, error)
-		GetAuthorInfo(ctx context.Context, authorID string) (*entity.Author, error)
-		ChangeAuthor(ctx context.Context, authorID string, newAuthorName string) error
+		RegisterAuthor(ctx context.Context, authorName string) (entity.Author, error)
+		UpdateAuthor(ctx context.Context, id, authorName string) error
+		GetAuthorInfo(ctx context.Context, id string) (string, error)
 	}
 
 	BooksUseCase interface {
-		AddBook(ctx context.Context, name string, authorIDs []string) (*entity.Book, error)
-		GetBook(ctx context.Context, bookID string) (*entity.Book, error)
-		UpdateBook(ctx context.Context, bookID string, newBookName string, authorIDs []string) error
-		GetAuthorBooks(ctx context.Context, authorID string) ([]*entity.Book, error)
+		RegisterBook(ctx context.Context, name string, authorIDs []string) (entity.Book, error)
+		GetBook(ctx context.Context, bookID string) (entity.Book, error)
+		UpdateBook(ctx context.Context, id, name string, authorIDs []string) error
+		GetAuthorBooks(ctx context.Context, id string) ([]entity.Book, error)
 	}
 )
+
+var _ AuthorUseCase = (*libraryImpl)(nil)
+var _ BooksUseCase = (*libraryImpl)(nil)
 
 type libraryImpl struct {
 	logger           *zap.Logger

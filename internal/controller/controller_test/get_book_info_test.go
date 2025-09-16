@@ -16,9 +16,15 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+// FIXME Необходимо перенести моки в сабтесты при использовании t.Parallel
+
 func Test_GetBookInfo(t *testing.T) {
 	t.Parallel()
+	ctrl := gomock.NewController(t)
 	logger, _ := zap.NewProduction()
+	authorUseCase := mocks.NewMockAuthorUseCase(ctrl)
+	bookUseCase := mocks.NewMockBooksUseCase(ctrl)
+	service := controller.New(logger, bookUseCase, authorUseCase)
 	ctx := t.Context()
 
 	type args struct {
@@ -29,7 +35,7 @@ func Test_GetBookInfo(t *testing.T) {
 	tests := []struct {
 		name        string
 		args        args
-		want        *entity.Book
+		want        entity.Book
 		wantErrCode codes.Code
 		wantErr     error
 		mocksUsed   bool
@@ -42,7 +48,7 @@ func Test_GetBookInfo(t *testing.T) {
 					Id: "7a948d89-108c-4133-be30-788bd453c0cd",
 				},
 			},
-			want: &entity.Book{
+			want: entity.Book{
 				ID:        "7a948d89-108c-4133-be30-788bd453c0cd",
 				Name:      "Test Book",
 				AuthorIDs: []string{uuid.NewString(), uuid.NewString()},
@@ -87,18 +93,8 @@ func Test_GetBookInfo(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-
-			// Создаем моки внутри каждого субтеста
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			authorUseCase := mocks.NewMockAuthorUseCase(ctrl)
-			bookUseCase := mocks.NewMockBooksUseCase(ctrl)
-			service := controller.New(logger, bookUseCase, authorUseCase)
-
 			if test.mocksUsed {
 				bookUseCase.
 					EXPECT().

@@ -1,15 +1,14 @@
 package main
 
 import (
-	log "github.com/sirupsen/logrus"
-	"go.uber.org/zap"
-
 	"github.com/project/library/config"
 	"github.com/project/library/internal/app"
+	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 func main() {
-	cfg, err := config.New()
+	cfg, err := config.NewConfig()
 
 	if err != nil {
 		log.Fatalf("can not get application config: %s", err)

@@ -19,28 +19,13 @@ func TestNew(t *testing.T) {
 		{
 			name: "ValidConfig",
 			envVars: map[string]string{
-				"GRPC_PORT":         "50051",
-				"GRPC_GATEWAY_PORT": "8080",
-				"POSTGRES_HOST":     "localhost",
-				"POSTGRES_PORT":     "5432",
-				"POSTGRES_DB":       "testdb",
-				"POSTGRES_USER":     "testuser",
-				"POSTGRES_PASSWORD": "testpassword",
-				"POSTGRES_MAX_CONN": "10",
+				"GRPC_PORT":         "9091",
+				"GRPC_GATEWAY_PORT": "8082",
 			},
 			want: &Config{
 				GRPC: GRPC{
-					Port:        "50051",
-					GatewayPort: "8080",
-				},
-				PG: PG{
-					URL:      "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable&pool_max_conns=10",
-					Host:     "localhost",
-					Port:     "5432",
-					DB:       "testdb",
-					User:     "testuser",
-					Password: "testpassword",
-					MaxConn:  "10",
+					Port:        "9091",
+					GatewayPort: "8082",
 				},
 			},
 			wantErr: false,
@@ -50,26 +35,11 @@ func TestNew(t *testing.T) {
 			envVars: map[string]string{
 				"GRPC_PORT":         "",
 				"GRPC_GATEWAY_PORT": "",
-				"POSTGRES_HOST":     "",
-				"POSTGRES_PORT":     "",
-				"POSTGRES_DB":       "",
-				"POSTGRES_USER":     "",
-				"POSTGRES_PASSWORD": "",
-				"POSTGRES_MAX_CONN": "",
 			},
 			want: &Config{
 				GRPC: GRPC{
 					Port:        "9090",
 					GatewayPort: "8080",
-				},
-				PG: PG{
-					URL:      "postgres://user:1234567@localhost:5432/library?sslmode=disable&pool_max_conns=10",
-					Host:     "localhost",
-					Port:     "5432",
-					DB:       "library",
-					User:     "user",
-					Password: "1234567",
-					MaxConn:  "10",
 				},
 			},
 			wantErr: false,
@@ -82,13 +52,13 @@ func TestNew(t *testing.T) {
 				t.Setenv(key, value) // Установка переменных окружения ОС
 			}
 
-			cfg, err := New() // Запуск тестируемого метода
+			cfg, err := NewConfig() // Запуск тестируемого метода
 
-			if test.wantErr {
-				require.Error(t, err)
-			} else {
+			if !test.wantErr {
 				require.NoError(t, err)
 				assert.Equal(t, test.want, cfg)
+			} else {
+				require.Error(t, err)
 			}
 
 			for key := range test.envVars {

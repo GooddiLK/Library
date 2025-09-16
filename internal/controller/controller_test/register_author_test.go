@@ -16,10 +16,16 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+// FIXME Необходимо перенести моки в сабтесты при использовании t.Parallel
+
 // Тесту проверяющему наличие автора стоило бы существовать, но два автора с одним именем могут существовать
 func Test_RegisterAuthor(t *testing.T) {
 	t.Parallel()
+	ctrl := gomock.NewController(t)
 	logger, _ := zap.NewProduction()
+	authorUseCase := mocks.NewMockAuthorUseCase(ctrl)
+	bookUseCase := mocks.NewMockBooksUseCase(ctrl)
+	service := controller.New(logger, bookUseCase, authorUseCase)
 	ctx := t.Context()
 
 	type args struct {
@@ -30,7 +36,7 @@ func Test_RegisterAuthor(t *testing.T) {
 	tests := []struct {
 		name        string
 		args        args
-		want        *entity.Author
+		want        entity.Author
 		wantErrCode codes.Code
 		wantErr     error
 		mocksUsed   bool
@@ -43,7 +49,7 @@ func Test_RegisterAuthor(t *testing.T) {
 					Name: "NameAbobs",
 				},
 			},
-			want: &entity.Author{
+			want: entity.Author{
 				ID:   "7a948d89-108c-4133-be30-788bd453c0cd",
 				Name: "NameAbobs",
 			},
@@ -75,18 +81,8 @@ func Test_RegisterAuthor(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-
-			// Создаем моки внутри каждого субтеста
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			authorUseCase := mocks.NewMockAuthorUseCase(ctrl)
-			bookUseCase := mocks.NewMockBooksUseCase(ctrl)
-			service := controller.New(logger, bookUseCase, authorUseCase)
-
 			if test.mocksUsed {
 				authorUseCase.
 					EXPECT().

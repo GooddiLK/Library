@@ -5,8 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/google/uuid"
 	"github.com/project/library/internal/entity"
 	"github.com/project/library/internal/usecase/library"
@@ -16,9 +14,9 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestAddBook(t *testing.T) {
+func TestLibraryImpl_RegisterBook(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx := context.Background()
 
 	logger, _ := zap.NewProduction()
 
@@ -26,8 +24,8 @@ func TestAddBook(t *testing.T) {
 		name        string
 		bookName    string
 		authorIDs   []string
-		mockSetup   func(bookRepo *mocks.MockBooksRepository)
-		want        *entity.Book
+		mockSetup   func(authorRepo *mocks.MockAuthorRepository, bookRepo *mocks.MockBooksRepository)
+		want        entity.Book
 		wantErr     bool
 		expectedErr error
 	}{
@@ -35,18 +33,17 @@ func TestAddBook(t *testing.T) {
 			name:      "register book usecase | successful registration without authors",
 			bookName:  "Test Book",
 			authorIDs: []string{},
-			mockSetup: func(bookRepo *mocks.MockBooksRepository) {
+			mockSetup: func(authorRepo *mocks.MockAuthorRepository, bookRepo *mocks.MockBooksRepository) {
 				bookRepo.EXPECT().
-					AddBook(ctx, gomock.Any()).
-					DoAndReturn(func(ctx context.Context, book *entity.Book) (*entity.Book, error) {
-						book.ID = uuid.NewString()
+					CreateBook(ctx, gomock.Any()).
+					DoAndReturn(func(ctx context.Context, book entity.Book) (entity.Book, error) {
 						assert.Equal(t, "Test Book", book.Name)
 						assert.Equal(t, []string{}, book.AuthorIDs)
 						assert.NotEmpty(t, book.ID)
 						return book, nil
 					})
 			},
-			want: &entity.Book{
+			want: entity.Book{
 				Name:      "Test Book",
 				AuthorIDs: []string{},
 			},
@@ -56,16 +53,23 @@ func TestAddBook(t *testing.T) {
 			name:      "register book usecase | successful registration with authors",
 			bookName:  "Test Book",
 			authorIDs: []string{"550e8400-e29b-41d4-a716-446655440000", "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed"},
-			mockSetup: func(bookRepo *mocks.MockBooksRepository) {
+			mockSetup: func(authorRepo *mocks.MockAuthorRepository, bookRepo *mocks.MockBooksRepository) {
+				authorRepo.EXPECT().
+					GetAuthorInfo(ctx, "550e8400-e29b-41d4-a716-446655440000").
+					Return("Author 1", nil)
+				authorRepo.EXPECT().
+					GetAuthorInfo(ctx, "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed").
+					Return("Author 2", nil)
+
 				bookRepo.EXPECT().
-					AddBook(ctx, gomock.Any()).
-					Return(&entity.Book{
+					CreateBook(ctx, gomock.Any()).
+					Return(entity.Book{
 						ID:        "7a948d89-108c-4133-be30-788bd453c0cd",
 						Name:      "Test Book",
 						AuthorIDs: []string{"550e8400-e29b-41d4-a716-446655440000", "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed"},
 					}, nil)
 			},
-			want: &entity.Book{
+			want: entity.Book{
 				ID:        "7a948d89-108c-4133-be30-788bd453c0cd",
 				Name:      "Test Book",
 				AuthorIDs: []string{"550e8400-e29b-41d4-a716-446655440000", "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed"},
@@ -76,18 +80,49 @@ func TestAddBook(t *testing.T) {
 			name:      "register book usecase | repository error",
 			bookName:  "Test Book",
 			authorIDs: []string{uuid.NewString()},
-			mockSetup: func(bookRepo *mocks.MockBooksRepository) {
+			mockSetup: func(authorRepo *mocks.MockAuthorRepository, bookRepo *mocks.MockBooksRepository) {
+				authorRepo.EXPECT().
+					GetAuthorInfo(ctx, gomock.Any()).
+					Return("Author Name", nil)
+
 				bookRepo.EXPECT().
-					AddBook(ctx, gomock.Any()).
-					Return(nil, errors.New("repository error"))
+					CreateBook(ctx, gomock.Any()).
+					Return(entity.Book{}, errors.New("repository error"))
 			},
 			wantErr:     true,
 			expectedErr: errors.New("repository error"),
 		},
+		{
+			name:      "register book usecase | author not found error",
+			bookName:  "Test Book",
+			authorIDs: []string{"non-existent-author"},
+			mockSetup: func(authorRepo *mocks.MockAuthorRepository, bookRepo *mocks.MockBooksRepository) {
+				authorRepo.EXPECT().
+					GetAuthorInfo(ctx, "non-existent-author").
+					Return("", entity.ErrAuthorNotFound)
+				// bookRepo.CreateBook НЕ должен вызываться
+			},
+			wantErr:     true,
+			expectedErr: entity.ErrAuthorNotFound,
+		},
+		{
+			name:      "register book usecase | one author not found among multiple",
+			bookName:  "Test Book",
+			authorIDs: []string{"existing-author", "non-existent-author"},
+			mockSetup: func(authorRepo *mocks.MockAuthorRepository, bookRepo *mocks.MockBooksRepository) {
+				authorRepo.EXPECT().
+					GetAuthorInfo(ctx, "existing-author").
+					Return("Existing Author", nil)
+				authorRepo.EXPECT().
+					GetAuthorInfo(ctx, "non-existent-author").
+					Return("", entity.ErrAuthorNotFound)
+			},
+			wantErr:     true,
+			expectedErr: entity.ErrAuthorNotFound,
+		},
 	}
 
 	for _, test := range tests {
-		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -99,31 +134,27 @@ func TestAddBook(t *testing.T) {
 			repo := library.New(logger, authorRepo, bookRepo)
 
 			if test.mockSetup != nil {
-				test.mockSetup(bookRepo)
+				test.mockSetup(authorRepo, bookRepo)
 			}
 
-			got, err := repo.AddBook(ctx, test.bookName, test.authorIDs)
+			got, err := repo.RegisterBook(ctx, test.bookName, test.authorIDs)
 
 			if test.wantErr {
-				require.Error(t, err)
+				assert.Error(t, err)
 				assert.Equal(t, test.expectedErr, err)
 			} else {
-				require.NoError(t, err)
+				assert.NoError(t, err)
 				assert.Equal(t, test.want.Name, got.Name)
 				assert.Equal(t, test.want.AuthorIDs, got.AuthorIDs)
-				if test.want.ID != "" {
-					assert.Equal(t, test.want.ID, got.ID)
-				} else {
-					assert.NotEmpty(t, got.ID)
-				}
+				assert.NotEmpty(t, got.ID)
 			}
 		})
 	}
 }
 
-func TestGetBook(t *testing.T) {
+func TestLibraryImpl_GetBook(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx := context.Background()
 
 	logger, _ := zap.NewProduction()
 
@@ -131,7 +162,7 @@ func TestGetBook(t *testing.T) {
 		name        string
 		bookID      string
 		mockSetup   func(bookRepo *mocks.MockBooksRepository)
-		want        *entity.Book
+		want        entity.Book
 		wantErr     bool
 		expectedErr error
 	}{
@@ -141,13 +172,13 @@ func TestGetBook(t *testing.T) {
 			mockSetup: func(bookRepo *mocks.MockBooksRepository) {
 				bookRepo.EXPECT().
 					GetBook(ctx, "7a948d89-108c-4133-be30-788bd453c0cd").
-					Return(&entity.Book{
+					Return(entity.Book{
 						ID:        "7a948d89-108c-4133-be30-788bd453c0cd",
 						Name:      "Test Book",
 						AuthorIDs: []string{"550e8400-e29b-41d4-a716-446655440000"},
 					}, nil)
 			},
-			want: &entity.Book{
+			want: entity.Book{
 				ID:        "7a948d89-108c-4133-be30-788bd453c0cd",
 				Name:      "Test Book",
 				AuthorIDs: []string{"550e8400-e29b-41d4-a716-446655440000"},
@@ -160,7 +191,7 @@ func TestGetBook(t *testing.T) {
 			mockSetup: func(bookRepo *mocks.MockBooksRepository) {
 				bookRepo.EXPECT().
 					GetBook(ctx, "7a948d89-108c-4133-be30-788bd453c0cd").
-					Return(&entity.Book{}, errors.New("repository error"))
+					Return(entity.Book{}, errors.New("repository error"))
 			},
 			wantErr:     true,
 			expectedErr: errors.New("repository error"),
@@ -185,10 +216,10 @@ func TestGetBook(t *testing.T) {
 			got, err := repo.GetBook(ctx, test.bookID)
 
 			if test.wantErr {
-				require.Error(t, err)
+				assert.Error(t, err)
 				assert.Equal(t, test.expectedErr, err)
 			} else {
-				require.NoError(t, err)
+				assert.NoError(t, err)
 				assert.Equal(t, test.want.ID, got.ID)
 				assert.Equal(t, test.want.Name, got.Name)
 				assert.Equal(t, test.want.AuthorIDs, got.AuthorIDs)
@@ -197,9 +228,9 @@ func TestGetBook(t *testing.T) {
 	}
 }
 
-func TestUpdateBook(t *testing.T) {
+func TestLibraryImpl_UpdateBook(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx := context.Background()
 
 	logger, _ := zap.NewProduction()
 
@@ -208,7 +239,7 @@ func TestUpdateBook(t *testing.T) {
 		bookID      string
 		bookName    string
 		authorIDs   []string
-		mockSetup   func(bookRepo *mocks.MockBooksRepository)
+		mockSetup   func(authorRepo *mocks.MockAuthorRepository, bookRepo *mocks.MockBooksRepository)
 		wantErr     bool
 		expectedErr error
 	}{
@@ -217,9 +248,20 @@ func TestUpdateBook(t *testing.T) {
 			bookID:    "7a948d89-108c-4133-be30-788bd453c0cd",
 			bookName:  "Updated Book Name",
 			authorIDs: []string{"550e8400-e29b-41d4-a716-446655440000", "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed"},
-			mockSetup: func(bookRepo *mocks.MockBooksRepository) {
+			mockSetup: func(authorRepo *mocks.MockAuthorRepository, bookRepo *mocks.MockBooksRepository) {
+				authorRepo.EXPECT().
+					GetAuthorInfo(ctx, "550e8400-e29b-41d4-a716-446655440000").
+					Return("Author 1", nil)
+				authorRepo.EXPECT().
+					GetAuthorInfo(ctx, "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed").
+					Return("Author 2", nil)
+
 				bookRepo.EXPECT().
-					UpdateBook(ctx, "7a948d89-108c-4133-be30-788bd453c0cd", "Updated Book Name", []string{"550e8400-e29b-41d4-a716-446655440000", "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed"}).
+					UpdateBook(ctx, entity.Book{
+						ID:        "7a948d89-108c-4133-be30-788bd453c0cd",
+						Name:      "Updated Book Name",
+						AuthorIDs: []string{"550e8400-e29b-41d4-a716-446655440000", "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed"},
+					}).
 					Return(nil)
 			},
 			wantErr: false,
@@ -229,9 +271,13 @@ func TestUpdateBook(t *testing.T) {
 			bookID:    "7a948d89-108c-4133-be30-788bd453c0cd",
 			bookName:  "Updated Book Name",
 			authorIDs: []string{},
-			mockSetup: func(bookRepo *mocks.MockBooksRepository) {
+			mockSetup: func(authorRepo *mocks.MockAuthorRepository, bookRepo *mocks.MockBooksRepository) {
 				bookRepo.EXPECT().
-					UpdateBook(ctx, "7a948d89-108c-4133-be30-788bd453c0cd", "Updated Book Name", []string{}).
+					UpdateBook(ctx, entity.Book{
+						ID:        "7a948d89-108c-4133-be30-788bd453c0cd",
+						Name:      "Updated Book Name",
+						AuthorIDs: []string{},
+					}).
 					Return(nil)
 			},
 			wantErr: false,
@@ -241,9 +287,17 @@ func TestUpdateBook(t *testing.T) {
 			bookID:    "7a948d89-108c-4133-be30-788bd453c0cd",
 			bookName:  "",
 			authorIDs: []string{"550e8400-e29b-41d4-a716-446655440000"},
-			mockSetup: func(bookRepo *mocks.MockBooksRepository) {
+			mockSetup: func(authorRepo *mocks.MockAuthorRepository, bookRepo *mocks.MockBooksRepository) {
+				authorRepo.EXPECT().
+					GetAuthorInfo(ctx, "550e8400-e29b-41d4-a716-446655440000").
+					Return("Author Name", nil)
+
 				bookRepo.EXPECT().
-					UpdateBook(ctx, "7a948d89-108c-4133-be30-788bd453c0cd", "", []string{"550e8400-e29b-41d4-a716-446655440000"}).
+					UpdateBook(ctx, entity.Book{
+						ID:        "7a948d89-108c-4133-be30-788bd453c0cd",
+						Name:      "",
+						AuthorIDs: []string{"550e8400-e29b-41d4-a716-446655440000"},
+					}).
 					Return(nil)
 			},
 			wantErr: false,
@@ -253,22 +307,58 @@ func TestUpdateBook(t *testing.T) {
 			bookID:    "7a948d89-108c-4133-be30-788bd453c0cd",
 			bookName:  "Updated Book Name",
 			authorIDs: []string{"author-id-1"},
-			mockSetup: func(bookRepo *mocks.MockBooksRepository) {
+			mockSetup: func(authorRepo *mocks.MockAuthorRepository, bookRepo *mocks.MockBooksRepository) {
+				authorRepo.EXPECT().
+					GetAuthorInfo(ctx, "author-id-1").
+					Return("Author Name", nil)
+
 				bookRepo.EXPECT().
-					UpdateBook(ctx, "7a948d89-108c-4133-be30-788bd453c0cd", "Updated Book Name", []string{"author-id-1"}).
+					UpdateBook(ctx, gomock.Any()).
 					Return(errors.New("repository error"))
 			},
 			wantErr:     true,
 			expectedErr: errors.New("repository error"),
 		},
 		{
+			name:      "update book usecase | author not found",
+			bookID:    "7a948d89-108c-4133-be30-788bd453c0cd",
+			bookName:  "Updated Book Name",
+			authorIDs: []string{"non-existent-author"},
+			mockSetup: func(authorRepo *mocks.MockAuthorRepository, bookRepo *mocks.MockBooksRepository) {
+				authorRepo.EXPECT().
+					GetAuthorInfo(ctx, "non-existent-author").
+					Return("", entity.ErrAuthorNotFound)
+			},
+			wantErr:     true,
+			expectedErr: entity.ErrAuthorNotFound,
+		},
+		{
+			name:      "update book usecase | one author not found among multiple",
+			bookID:    "7a948d89-108c-4133-be30-788bd453c0cd",
+			bookName:  "Updated Book Name",
+			authorIDs: []string{"existing-author", "non-existent-author"},
+			mockSetup: func(authorRepo *mocks.MockAuthorRepository, bookRepo *mocks.MockBooksRepository) {
+				authorRepo.EXPECT().
+					GetAuthorInfo(ctx, "existing-author").
+					Return("Existing Author", nil)
+				authorRepo.EXPECT().
+					GetAuthorInfo(ctx, "non-existent-author").
+					Return("", entity.ErrAuthorNotFound)
+			},
+			wantErr:     true,
+			expectedErr: entity.ErrAuthorNotFound,
+		},
+		{
 			name:      "update book usecase | book not found",
 			bookID:    "non-existent-id",
 			bookName:  "Updated Book Name",
 			authorIDs: []string{"author-id-1"},
-			mockSetup: func(bookRepo *mocks.MockBooksRepository) {
+			mockSetup: func(authorRepo *mocks.MockAuthorRepository, bookRepo *mocks.MockBooksRepository) {
+				authorRepo.EXPECT().
+					GetAuthorInfo(ctx, "author-id-1").
+					Return("Author Name", nil)
 				bookRepo.EXPECT().
-					UpdateBook(ctx, "non-existent-id", "Updated Book Name", []string{"author-id-1"}).
+					UpdateBook(ctx, gomock.Any()).
 					Return(entity.ErrBookNotFound)
 			},
 			wantErr:     true,
@@ -277,7 +367,6 @@ func TestUpdateBook(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -289,16 +378,16 @@ func TestUpdateBook(t *testing.T) {
 			repo := library.New(logger, authorRepo, bookRepo)
 
 			if test.mockSetup != nil {
-				test.mockSetup(bookRepo)
+				test.mockSetup(authorRepo, bookRepo)
 			}
 
 			err := repo.UpdateBook(ctx, test.bookID, test.bookName, test.authorIDs)
 
 			if test.wantErr {
-				require.Error(t, err)
+				assert.Error(t, err)
 				assert.Equal(t, test.expectedErr, err)
 			} else {
-				require.NoError(t, err)
+				assert.NoError(t, err)
 			}
 		})
 	}
@@ -306,7 +395,7 @@ func TestUpdateBook(t *testing.T) {
 
 func TestLibraryImpl_GetAuthorBooks(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx := context.Background()
 
 	logger, _ := zap.NewProduction()
 
@@ -314,7 +403,7 @@ func TestLibraryImpl_GetAuthorBooks(t *testing.T) {
 		name        string
 		authorID    string
 		mockSetup   func(bookRepo *mocks.MockBooksRepository)
-		want        []*entity.Book
+		want        []entity.Book
 		wantErr     bool
 		expectedErr error
 	}{
@@ -324,7 +413,7 @@ func TestLibraryImpl_GetAuthorBooks(t *testing.T) {
 			mockSetup: func(bookRepo *mocks.MockBooksRepository) {
 				bookRepo.EXPECT().
 					GetAuthorBooks(ctx, "550e8400-e29b-41d4-a716-446655440000").
-					Return([]*entity.Book{
+					Return([]entity.Book{
 						{
 							ID:        "book-id-1",
 							Name:      "Book 1",
@@ -337,7 +426,7 @@ func TestLibraryImpl_GetAuthorBooks(t *testing.T) {
 						},
 					}, nil)
 			},
-			want: []*entity.Book{
+			want: []entity.Book{
 				{
 					ID:        "book-id-1",
 					Name:      "Book 1",
@@ -357,7 +446,7 @@ func TestLibraryImpl_GetAuthorBooks(t *testing.T) {
 			mockSetup: func(bookRepo *mocks.MockBooksRepository) {
 				bookRepo.EXPECT().
 					GetAuthorBooks(ctx, "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed").
-					Return([]*entity.Book{
+					Return([]entity.Book{
 						{
 							ID:        "single-book-id",
 							Name:      "Single Book",
@@ -365,7 +454,7 @@ func TestLibraryImpl_GetAuthorBooks(t *testing.T) {
 						},
 					}, nil)
 			},
-			want: []*entity.Book{
+			want: []entity.Book{
 				{
 					ID:        "single-book-id",
 					Name:      "Single Book",
@@ -380,9 +469,9 @@ func TestLibraryImpl_GetAuthorBooks(t *testing.T) {
 			mockSetup: func(bookRepo *mocks.MockBooksRepository) {
 				bookRepo.EXPECT().
 					GetAuthorBooks(ctx, "author-with-no-books").
-					Return([]*entity.Book{}, nil)
+					Return([]entity.Book{}, nil)
 			},
-			want:    []*entity.Book{},
+			want:    []entity.Book{},
 			wantErr: false,
 		},
 		{
@@ -402,7 +491,7 @@ func TestLibraryImpl_GetAuthorBooks(t *testing.T) {
 			mockSetup: func(bookRepo *mocks.MockBooksRepository) {
 				bookRepo.EXPECT().
 					GetAuthorBooks(ctx, "multi-author-book-author").
-					Return([]*entity.Book{
+					Return([]entity.Book{
 						{
 							ID:        "multi-author-book-1",
 							Name:      "Multi Author Book 1",
@@ -415,7 +504,7 @@ func TestLibraryImpl_GetAuthorBooks(t *testing.T) {
 						},
 					}, nil)
 			},
-			want: []*entity.Book{
+			want: []entity.Book{
 				{
 					ID:        "multi-author-book-1",
 					Name:      "Multi Author Book 1",
@@ -449,10 +538,10 @@ func TestLibraryImpl_GetAuthorBooks(t *testing.T) {
 			got, err := repo.GetAuthorBooks(ctx, test.authorID)
 
 			if test.wantErr {
-				require.Error(t, err)
+				assert.Error(t, err)
 				assert.Equal(t, test.expectedErr, err)
 			} else {
-				require.NoError(t, err)
+				assert.NoError(t, err)
 				assert.Equal(t, len(test.want), len(got))
 
 				for i, expectedBook := range test.want {

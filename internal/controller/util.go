@@ -1,15 +1,13 @@
 package controller
 
 import (
-	"errors"
-
+	"github.com/pkg/errors"
+	"github.com/project/library/internal/entity"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"github.com/project/library/internal/entity"
 )
 
-func (i *impl) ConvertErr(err error) error {
+func (i *implementation) convertErr(err error) error {
 	if err == nil {
 		return nil
 	}

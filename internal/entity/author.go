@@ -1,9 +1,6 @@
 package entity
 
-import (
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-)
+import "github.com/pkg/errors"
 
 type Author struct {
 	ID   string
@@ -11,6 +8,6 @@ type Author struct {
 }
 
 var (
-	ErrAuthorNotFound      = status.Error(codes.NotFound, "author not found")
-	ErrAuthorAlreadyExists = status.Error(codes.AlreadyExists, "author already exists")
+	ErrAuthorNotFound      = errors.New("author not found")
+	ErrAuthorAlreadyExists = errors.New("author already exists")
 )

@@ -16,9 +16,15 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+// FIXME Необходимо перенести моки в сабтесты при использовании t.Parallel
+
 func Test_UpdateBook(t *testing.T) {
 	t.Parallel()
+	ctrl := gomock.NewController(t)
 	logger, _ := zap.NewProduction()
+	authorUseCase := mocks.NewMockAuthorUseCase(ctrl)
+	bookUseCase := mocks.NewMockBooksUseCase(ctrl)
+	service := controller.New(logger, bookUseCase, authorUseCase)
 	ctx := t.Context()
 
 	type args struct {
@@ -38,9 +44,9 @@ func Test_UpdateBook(t *testing.T) {
 			args: args{
 				ctx,
 				&library.UpdateBookRequest{
-					Id:        "7a948d89-108c-4133-be30-788bd453c0cd",
-					Name:      "New name",
-					AuthorIds: []string{uuid.NewString(), uuid.NewString()},
+					Id:       "7a948d89-108c-4133-be30-788bd453c0cd",
+					Name:     "New name",
+					AuthorId: []string{uuid.NewString(), uuid.NewString()},
 				},
 			},
 			wantErrCode: codes.OK,
@@ -64,8 +70,8 @@ func Test_UpdateBook(t *testing.T) {
 			args: args{
 				ctx,
 				&library.UpdateBookRequest{
-					Id:        "7a948d89-108c-4133-be30-788bd453c0cd",
-					AuthorIds: []string{"author-id-1"},
+					Id:       "7a948d89-108c-4133-be30-788bd453c0cd",
+					AuthorId: []string{"author-id-1"},
 				},
 			},
 			wantErrCode: codes.InvalidArgument,
@@ -98,8 +104,8 @@ func Test_UpdateBook(t *testing.T) {
 			args: args{
 				ctx,
 				&library.UpdateBookRequest{
-					Id:        "7a948d89-108c-4133-be30-788bd453c0cd",
-					AuthorIds: []string{"aboba"},
+					Id:       "7a948d89-108c-4133-be30-788bd453c0cd",
+					AuthorId: []string{"aboba"},
 				},
 			},
 			wantErrCode: codes.InvalidArgument,
@@ -121,22 +127,12 @@ func Test_UpdateBook(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-
-			// Создаем моки внутри каждого субтеста
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			authorUseCase := mocks.NewMockAuthorUseCase(ctrl)
-			bookUseCase := mocks.NewMockBooksUseCase(ctrl)
-			service := controller.New(logger, bookUseCase, authorUseCase)
-
 			if test.mocksUsed {
 				bookUseCase.
 					EXPECT().
-					UpdateBook(ctx, test.args.req.GetId(), test.args.req.GetName(), test.args.req.GetAuthorIds()).
+					UpdateBook(ctx, test.args.req.GetId(), test.args.req.GetName(), test.args.req.GetAuthorId()).
 					Return(test.wantErr)
 			}
 

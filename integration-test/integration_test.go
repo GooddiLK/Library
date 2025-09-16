@@ -1,10 +1,9 @@
-//go:build database_hw
+//go:build integration_test
 
-package database_hw
+package integration
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,22 +11,18 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -37,191 +32,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var db *sql.DB
-
-const (
-	authorTableName     = "author"
-	bookTableName       = "book"
-	authorBookTableName = "author_book"
-)
-
-func TestMain(m *testing.M) {
-	host := os.Getenv("POSTGRES_HOST")
-	port := os.Getenv("POSTGRES_PORT")
-	dbName := os.Getenv("POSTGRES_DB")
-	user := os.Getenv("POSTGRES_USER")
-	password := os.Getenv("POSTGRES_PASSWORD")
-
-	source := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		url.QueryEscape(user),
-		url.QueryEscape(password),
-		host,
-		port,
-		dbName,
-	)
-
-	var err error
-	db, err = sql.Open("postgres", source)
-
-	if err != nil {
-		log.Fatalf("Could not connect to database: %v", err)
-	}
-
-	code := m.Run()
-	db.Close()
-	os.Exit(code)
-}
-
-func cleanUp(t *testing.T) {
-	t.Helper()
-
-	_, err := db.Exec(fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", authorTableName))
-	require.NoError(t, err)
-
-	_, err = db.Exec(fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", bookTableName))
-	require.NoError(t, err)
-
-	_, err = db.Exec(fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", authorBookTableName))
-	require.NoError(t, err)
-}
-
-func TestLibraryConsistency(t *testing.T) {
-	ctx := context.Background()
-	executable := getLibraryExecutable(t)
-	grpcPort := findFreePort(t)
-	grpcGatewayPort := findFreePort(t)
-	client := newGRPCClient(t, grpcPort)
-
-	http.DefaultClient.Timeout = time.Second * 1
-
-	cmd := setupLibrary(t, executable, grpcPort, grpcGatewayPort)
-	t.Cleanup(func() {
-		stopLibrary(t, cmd)
-		cleanUp(t)
-	})
-
-	const iterations = 100
-
-	authorIDs := make([]string, 0, 100)
-	for i := 0; i < 20; i++ {
-		registerRes, err := client.RegisterAuthor(ctx, &RegisterAuthorRequest{
-			Name: "author" + strconv.Itoa(i),
-		})
-		require.NoError(t, err)
-
-		authorID := registerRes.GetId()
-		authorIDs = append(authorIDs, authorID)
-	}
-
-	slices.Sort(authorIDs)
-
-	var (
-		firstBookName      = "book-1"
-		firstBookAuthorIDs = authorIDs[:15]
-	)
-
-	var (
-		secondBookName      = "book-2"
-		secondBookAuthorIDs = authorIDs[5:20]
-	)
-
-	// initially insert the first state
-	book, err := client.AddBook(ctx, &AddBookRequest{
-		Name:      firstBookName,
-		AuthorIds: firstBookAuthorIDs,
-	})
-	require.NoError(t, err)
-
-	bookID := book.GetBook().GetId()
-
-	wg := new(sync.WaitGroup)
-	errCounter := atomic.Int64{}
-	for i := 0; i < runtime.GOMAXPROCS(-1); i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			for {
-				if t.Failed() {
-					break
-				}
-
-				if errCounter.Load() >= iterations {
-					break
-				}
-
-				finalBook, err := client.GetBookInfo(ctx, &GetBookInfoRequest{
-					Id: bookID,
-				})
-
-				if err == nil {
-					finalAuthorIDs := finalBook.GetBook().GetAuthorId()
-
-					slices.Sort(finalAuthorIDs)
-
-					if finalBook.GetBook().Name == firstBookName {
-						require.Equal(t, firstBookAuthorIDs, finalAuthorIDs, "First book")
-					}
-
-					if finalBook.GetBook().Name == secondBookName {
-						require.Equal(t, secondBookAuthorIDs, finalAuthorIDs, "Second book")
-					}
-				}
-
-				var (
-					newbookName      string
-					newbookAuthorIDs []string
-				)
-
-				if rand.N[int](1_000_1234)%2 == 0 {
-					newbookName = firstBookName
-					newbookAuthorIDs = firstBookAuthorIDs
-				} else {
-					newbookName = secondBookName
-					newbookAuthorIDs = secondBookAuthorIDs
-				}
-
-				_, err = client.UpdateBook(ctx, &UpdateBookRequest{
-					Id:        bookID,
-					Name:      newbookName,
-					AuthorIds: newbookAuthorIDs,
-				})
-
-				if err != nil {
-					fmt.Println(errCounter.Load())
-					errCounter.Add(1)
-					time.Sleep(time.Millisecond * 300)
-				}
-			}
-		}()
-	}
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		for {
-			if t.Failed() {
-				break
-			}
-
-			if errCounter.Load() >= iterations {
-				break
-			}
-
-			select {
-			case <-time.Tick(time.Millisecond * 500):
-				stopLibrary(t, cmd)
-				cmd = setupLibrary(t, executable, grpcPort, grpcGatewayPort)
-			}
-		}
-	}()
-
-	wg.Wait()
-	time.Sleep(time.Second * 3)
-}
-
-func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
+func TestLibraryWithInMemoryInvariant(t *testing.T) {
 	executable := getLibraryExecutable(t)
 	grpcPort := findFreePort(t)
 	grpcGatewayPort := findFreePort(t)
@@ -231,14 +42,9 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 	cmd := setupLibrary(t, executable, grpcPort, grpcGatewayPort)
 	t.Cleanup(func() {
 		stopLibrary(t, cmd)
-		cleanUp(t)
 	})
 
 	t.Run("author grpc", func(t *testing.T) {
-		t.Cleanup(func() {
-			cleanUp(t)
-		})
-
 		ctx := context.Background()
 		client := newGRPCClient(t, grpcPort)
 
@@ -254,8 +60,8 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 		author, err := client.GetAuthorInfo(ctx, &GetAuthorInfoRequest{
 			Id: authorID,
 		})
-
 		require.NoError(t, err)
+
 		require.Equal(t, authorName, author.GetName())
 		require.Equal(t, authorID, author.GetId())
 
@@ -264,9 +70,6 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 			Name: authorName + "123",
 		})
 		require.NoError(t, err)
-
-		stopLibrary(t, cmd)
-		cmd = setupLibrary(t, executable, grpcPort, grpcGatewayPort)
 
 		newAuthor, err := client.GetAuthorInfo(ctx, &GetAuthorInfoRequest{
 			Id: authorID,
@@ -278,10 +81,6 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 	})
 
 	t.Run("book grpc", func(t *testing.T) {
-		t.Cleanup(func() {
-			cleanUp(t)
-		})
-
 		ctx := context.Background()
 		client := newGRPCClient(t, grpcPort)
 
@@ -294,17 +93,12 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 			Name: authorName,
 		})
 
-		stopLibrary(t, cmd)
-		cmd = setupLibrary(t, executable, grpcPort, grpcGatewayPort)
-
 		require.NoError(t, err)
 		authorID := registerRes.GetId()
 
-		createdTime := time.Now()
-		time.Sleep(time.Second)
 		response, err := client.AddBook(ctx, &AddBookRequest{
-			Name:      bookName,
-			AuthorIds: []string{authorID},
+			Name:     bookName,
+			AuthorId: []string{authorID},
 		})
 		require.NoError(t, err)
 
@@ -313,7 +107,6 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 		require.Equal(t, bookName, book.GetName())
 		require.Equal(t, 1, len(book.GetAuthorId()))
 		require.Equal(t, authorID, book.GetAuthorId()[0])
-		require.LessOrEqual(t, createdTime, book.GetCreatedAt().AsTime())
 
 		_, err = client.UpdateBook(ctx, &UpdateBookRequest{
 			Id:        book.GetId(),
@@ -330,7 +123,6 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 		require.Equal(t, bookName+"-2024", newBook.GetBook().GetName())
 		require.Equal(t, 1, len(newBook.GetBook().GetAuthorId()))
 		require.Equal(t, authorID, newBook.GetBook().GetAuthorId()[0])
-		require.LessOrEqual(t, book.CreatedAt.AsTime(), newBook.GetBook().GetUpdatedAt().AsTime())
 
 		books := getAllAuthorBooks(t, authorID, client)
 
@@ -342,10 +134,6 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 	})
 
 	t.Run("concurrent access", func(t *testing.T) {
-		t.Cleanup(func() {
-			cleanUp(t)
-		})
-
 		ctx := context.Background()
 		client := newGRPCClient(t, grpcPort)
 
@@ -383,8 +171,8 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 
 				for b := s; b < right; b++ {
 					_, err := client.AddBook(ctx, &AddBookRequest{
-						Name:      books[b],
-						AuthorIds: []string{authorID},
+						Name:     books[b],
+						AuthorId: []string{authorID},
 					})
 					require.NoError(t, err)
 				}
@@ -406,10 +194,6 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 	})
 
 	t.Run("author not found", func(t *testing.T) {
-		t.Cleanup(func() {
-			cleanUp(t)
-		})
-
 		ctx := context.Background()
 		client := newGRPCClient(t, grpcPort)
 
@@ -423,10 +207,6 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 	})
 
 	t.Run("author invalid argument", func(t *testing.T) {
-		t.Cleanup(func() {
-			cleanUp(t)
-		})
-
 		ctx := context.Background()
 		client := newGRPCClient(t, grpcPort)
 
@@ -440,10 +220,6 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 	})
 
 	t.Run("book not found", func(t *testing.T) {
-		t.Cleanup(func() {
-			cleanUp(t)
-		})
-
 		ctx := context.Background()
 		client := newGRPCClient(t, grpcPort)
 
@@ -458,16 +234,12 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 
 	// https://www.pravmir.ru/russkie-narodnye-skazki/
 	t.Run("book without author", func(t *testing.T) {
-		t.Cleanup(func() {
-			cleanUp(t)
-		})
-
 		ctx := context.Background()
 		client := newGRPCClient(t, grpcPort)
 
 		response, err := client.AddBook(ctx, &AddBookRequest{
-			Name:      "123",
-			AuthorIds: nil,
+			Name:     "123",
+			AuthorId: nil,
 		})
 		require.NoError(t, err)
 
@@ -480,10 +252,6 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 	})
 
 	t.Run("author_name validation error length", func(t *testing.T) {
-		t.Cleanup(func() {
-			cleanUp(t)
-		})
-
 		ctx := context.Background()
 		client := newGRPCClient(t, grpcPort)
 
@@ -505,10 +273,6 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 	})
 
 	t.Run("author_name validation error pattern", func(t *testing.T) {
-		t.Cleanup(func() {
-			cleanUp(t)
-		})
-
 		ctx := context.Background()
 		client := newGRPCClient(t, grpcPort)
 
@@ -522,16 +286,12 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 	})
 
 	t.Run("add book with not existing authors", func(t *testing.T) {
-		t.Cleanup(func() {
-			cleanUp(t)
-		})
-
 		ctx := context.Background()
 		client := newGRPCClient(t, grpcPort)
 
 		_, err := client.AddBook(ctx, &AddBookRequest{
-			Name:      "Test book",
-			AuthorIds: []string{uuid.New().String()},
+			Name:     "Test book",
+			AuthorId: []string{uuid.New().String()},
 		})
 
 		s, ok := status.FromError(err)
@@ -540,10 +300,6 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 	})
 
 	t.Run("update book with not existing authors", func(t *testing.T) {
-		t.Cleanup(func() {
-			cleanUp(t)
-		})
-
 		ctx := context.Background()
 		client := newGRPCClient(t, grpcPort)
 
@@ -557,8 +313,8 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 		require.NoError(t, err)
 		authorID := registerRes.GetId()
 		addRes, err := client.AddBook(ctx, &AddBookRequest{
-			Name:      bookName,
-			AuthorIds: []string{authorID},
+			Name:     bookName,
+			AuthorId: []string{authorID},
 		})
 		bookId := addRes.GetBook().GetId()
 
@@ -574,10 +330,6 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 	})
 
 	t.Run("book invalid argument", func(t *testing.T) {
-		t.Cleanup(func() {
-			cleanUp(t)
-		})
-
 		ctx := context.Background()
 		client := newGRPCClient(t, grpcPort)
 
@@ -591,10 +343,6 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 	})
 
 	t.Run("grpc gateway", func(t *testing.T) {
-		t.Cleanup(func() {
-			cleanUp(t)
-		})
-
 		type RegisterAuthorResponse struct {
 			ID string `json:"id"`
 		}
@@ -643,10 +391,6 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 	})
 
 	t.Run("book many authors grpc", func(t *testing.T) {
-		t.Cleanup(func() {
-			cleanUp(t)
-		})
-
 		ctx := context.Background()
 		client := newGRPCClient(t, grpcPort)
 
@@ -666,8 +410,8 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 		}
 
 		bookAdded, err := client.AddBook(ctx, &AddBookRequest{
-			Name:      bookName,
-			AuthorIds: authorIds,
+			Name:     bookName,
+			AuthorId: authorIds,
 		})
 		require.NoError(t, err)
 		require.ElementsMatch(t, bookAdded.Book.AuthorId, authorIds)
@@ -675,151 +419,8 @@ func TestLibraryWithoutInMemoryInvariant(t *testing.T) {
 		bookReceived, err := client.GetBookInfo(ctx, &GetBookInfoRequest{
 			Id: bookAdded.Book.Id,
 		})
-
 		require.NoError(t, err)
-
-		slices.Sort(bookAdded.Book.AuthorId)
-		slices.Sort(bookReceived.Book.AuthorId)
-
 		require.EqualExportedValues(t, bookAdded.Book, bookReceived.Book)
-	})
-
-	t.Run("update book changes GetAuthorBooks response", func(t *testing.T) {
-		t.Cleanup(func() {
-			cleanUp(t)
-		})
-
-		ctx := context.Background()
-		client := newGRPCClient(t, grpcPort)
-
-		const bookName = "Book name"
-		authorNames := []string{"Author1", "Author2"}
-		authorIds := make([]string, 0, 2)
-
-		for _, authorName := range authorNames {
-			registerRes, err := client.RegisterAuthor(ctx, &RegisterAuthorRequest{
-				Name: authorName,
-			})
-			require.NoError(t, err)
-			authorIds = append(authorIds, registerRes.GetId())
-		}
-
-		addRes, err := client.AddBook(ctx, &AddBookRequest{
-			Name:      bookName,
-			AuthorIds: authorIds,
-		})
-		require.NoError(t, err)
-		book := addRes.GetBook()
-
-		checkAuthorBooks := func(authorId string, book *Book) {
-			books := getAllAuthorBooks(t, authorId, client)
-
-			if book != nil {
-				require.Equal(t, 1, len(books))
-				require.Equal(t, book.GetName(), books[0].GetName())
-				require.Contains(t, books[0].GetAuthorId(), authorId)
-			} else {
-				require.Equal(t, 0, len(books))
-			}
-		}
-
-		checkAuthorBooks(authorIds[0], book)
-		checkAuthorBooks(authorIds[1], book)
-
-		_, err = client.UpdateBook(ctx, &UpdateBookRequest{
-			Id:        book.GetId(),
-			Name:      book.GetName(),
-			AuthorIds: []string{authorIds[0]},
-		})
-		require.NoError(t, err)
-
-		checkAuthorBooks(authorIds[0], book)
-		checkAuthorBooks(authorIds[1], nil)
-	})
-
-	t.Run("update book concurrent calls", func(t *testing.T) {
-		t.Cleanup(func() {
-			cleanUp(t)
-		})
-
-		ctx := context.Background()
-		client := newGRPCClient(t, grpcPort)
-
-		const (
-			bookName        = "Book name"
-			authorBasicName = "Author"
-			authorsCount    = 10
-			iterations      = 100
-			workers         = 50
-		)
-
-		authorIds := make([]string, authorsCount)
-		for i := range authorsCount {
-			author, err := client.RegisterAuthor(ctx, &RegisterAuthorRequest{
-				Name: authorBasicName + strconv.Itoa(rand.N[int](1e9)),
-			})
-			require.NoError(t, err)
-			authorIds[i] = author.Id
-		}
-
-		addRes, err := client.AddBook(ctx, &AddBookRequest{
-			Name:      bookName,
-			AuthorIds: authorIds,
-		})
-		require.NoError(t, err)
-		book := addRes.GetBook()
-		require.ElementsMatch(t, authorIds, book.GetAuthorId())
-
-		// Now randomly update authors list in hope to break synchronization
-
-		wg := new(sync.WaitGroup)
-		for range workers {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-
-				newAuthorIds := make([]string, 0)
-				for _, authorId := range authorIds {
-					if rand.N[int](1e9)%2 == 0 {
-						newAuthorIds = append(newAuthorIds, authorId)
-					}
-				}
-
-				for range iterations {
-					_, err := client.UpdateBook(ctx, &UpdateBookRequest{
-						Id:        book.GetId(),
-						Name:      book.GetName(),
-						AuthorIds: newAuthorIds,
-					})
-					require.NoError(t, err)
-				}
-			}()
-		}
-
-		wg.Wait()
-
-		bookUpdated, err := client.GetBookInfo(ctx, &GetBookInfoRequest{
-			Id: book.GetId(),
-		})
-		require.NoError(t, err)
-		bookUpdatedAuthors := bookUpdated.GetBook().GetAuthorId()
-
-		// check authorship consistency
-
-		for _, authorId := range bookUpdatedAuthors {
-			books := getAllAuthorBooks(t, authorId, client)
-
-			require.Equal(t, 1, len(books))
-			require.Equal(t, book.GetId(), books[0].GetId())
-			require.ElementsMatch(t, bookUpdatedAuthors, books[0].GetAuthorId())
-		}
-
-		for _, authorId := range authorIds {
-			if !slices.Contains(bookUpdatedAuthors, authorId) {
-				books := getAllAuthorBooks(t, authorId, client)
-				require.Equal(t, 0, len(books))
-			}
-		}
 	})
 }
 
@@ -829,15 +430,14 @@ func getLibraryExecutable(t *testing.T) string {
 	wd, err := os.Getwd()
 	require.NoError(t, err)
 
-	binaryPath, err := resolveFilePath(filepath.Dir(filepath.Dir(wd)), "library")
+	binaryPath, err := resolveFilePath(filepath.Dir(wd), "library")
 	require.NoError(t, err, "you need to compile your library service, run make build")
 
 	return binaryPath
 }
 
-var requiredEnv = []string{"POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_MAX_CONN"}
-
-//var requiredEnv = make([]string, 0)
+// var requiredEnv = []string{"POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD"}
+var requiredEnv = make([]string, 0)
 
 func setupLibrary(
 	t *testing.T,
@@ -860,7 +460,6 @@ func setupLibrary(
 
 	cmd.Env = append(cmd.Env, "GRPC_PORT="+grpcPort)
 	cmd.Env = append(cmd.Env, "GRPC_GATEWAY_PORT="+grpcGatewayPort)
-	cmd.Env = append(cmd.Env, "OUTBOX_ENABLED=false")
 
 	require.NoError(t, cmd.Start())
 	grpcClient := newGRPCClient(t, grpcPort)
@@ -891,7 +490,7 @@ func setupLibrary(
 	for i := range 50 {
 		response, _ := http.Get(getUrl)
 
-		if response != nil {
+		if response != nil && response.StatusCode == http.StatusNotFound {
 			break
 		}
 
