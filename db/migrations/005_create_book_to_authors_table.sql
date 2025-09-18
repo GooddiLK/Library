@@ -1,5 +1,5 @@
 -- +goose Up
-CREATE TABLE author_book
+CREATE TABLE IF NOT EXISTS author_book
 (
     author_id UUID NOT NULL REFERENCES author (id) ON DELETE CASCADE,
     book_id   UUID NOT NULL REFERENCES book (id) ON DELETE CASCADE, -- При удалении книги удаляются связи
@@ -7,4 +7,4 @@ CREATE TABLE author_book
 );
 
 -- +goose Down
-DROP TABLE author_book;
+DROP TABLE IF EXISTS author_book;
