@@ -34,20 +34,14 @@ func (m *mockLibraryGetAuthorBooksServer) Context() context.Context {
 	return context.Background()
 }
 
-// FIXME Необходимо перенести моки в сабтесты при использовании t.Parallel
-
 func Test_GetAuthorBooks(t *testing.T) {
 	t.Parallel()
-	ctrl := gomock.NewController(t)
 	logger, _ := zap.NewProduction()
-	authorUseCase := mocks.NewMockAuthorUseCase(ctrl)
-	bookUseCase := mocks.NewMockBooksUseCase(ctrl)
-	service := controller.New(logger, bookUseCase, authorUseCase)
 
 	tests := []struct {
 		name              string
 		req               *library.GetAuthorBooksRequest
-		wantUsecaseReturn []entity.Book
+		wantUsecaseReturn []*entity.Book
 
 		wantErrCode codes.Code
 		wantErr     error
@@ -59,7 +53,7 @@ func Test_GetAuthorBooks(t *testing.T) {
 			req: &library.GetAuthorBooksRequest{
 				AuthorId: "7a948d89-108c-4133-be30-788bd453c0cd",
 			},
-			wantUsecaseReturn: []entity.Book{
+			wantUsecaseReturn: []*entity.Book{
 				{
 					ID:        uuid.NewString(),
 					Name:      "Aboba1",
@@ -81,7 +75,7 @@ func Test_GetAuthorBooks(t *testing.T) {
 			req: &library.GetAuthorBooksRequest{
 				AuthorId: "7a948d89-108c-4133-be30-788bd453c0cd",
 			},
-			wantUsecaseReturn: []entity.Book{},
+			wantUsecaseReturn: []*entity.Book{},
 			wantErrCode:       codes.OK,
 			wantErr:           nil,
 			mocksUsed:         true,
@@ -93,7 +87,7 @@ func Test_GetAuthorBooks(t *testing.T) {
 			req: &library.GetAuthorBooksRequest{
 				AuthorId: "Aboba",
 			},
-			wantUsecaseReturn: []entity.Book{},
+			wantUsecaseReturn: []*entity.Book{},
 			wantErrCode:       codes.InvalidArgument,
 			wantErr:           status.Error(codes.InvalidArgument, " uncorrected author id"),
 			mocksUsed:         false,
@@ -102,8 +96,18 @@ func Test_GetAuthorBooks(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
+
+			// Создаем моки внутри каждого субтеста
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			authorUseCase := mocks.NewMockAuthorUseCase(ctrl)
+			bookUseCase := mocks.NewMockBooksUseCase(ctrl)
+			service := controller.New(logger, bookUseCase, authorUseCase)
+
 			if test.mocksUsed {
 				bookUseCase.EXPECT().
 					GetAuthorBooks(gomock.Any(), test.req.GetAuthorId()).
@@ -115,10 +119,10 @@ func Test_GetAuthorBooks(t *testing.T) {
 
 			if test.mocksUsed && test.server.books != nil {
 				for idx, book := range test.server.books {
-					assert.Equal(t, test.wantUsecaseReturn[idx].ID, book.Id)
-					assert.Equal(t, test.wantUsecaseReturn[idx].Name, book.Name)
+					assert.Equal(t, test.wantUsecaseReturn[idx].ID, book.GetId())
+					assert.Equal(t, test.wantUsecaseReturn[idx].Name, book.GetName())
 					// Потенциально порядок не важен (но как он может измениться???)
-					assert.ElementsMatch(t, test.wantUsecaseReturn[idx].AuthorIDs, book.AuthorId)
+					assert.ElementsMatch(t, test.wantUsecaseReturn[idx].AuthorIDs, book.GetAuthorId())
 				}
 			}
 		})

@@ -2,23 +2,68 @@ package repository
 
 import (
 	"context"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/project/library/internal/entity"
 )
 
-//go:generate mockgen_uber -source=interfaces.go -destination=mocks/library_mock.go -package=mocks
-
+//go:generate mockgen_uber -source=interfaces.go -destination=mocks/repository_mock.go -package=mocks
 type (
 	AuthorRepository interface {
-		CreateAuthor(ctx context.Context, author entity.Author) (entity.Author, error)
-		UpdateAuthor(ctx context.Context, id, authorName string) error
-		GetAuthorInfo(ctx context.Context, id string) (string, error)
+		RegisterAuthor(ctx context.Context, author *entity.Author) (*entity.Author, error)
+		GetAuthorInfo(ctx context.Context, authorID string) (*entity.Author, error)
+		ChangeAuthor(ctx context.Context, authorID string, newAuthorName string) error
 	}
 
 	BooksRepository interface {
-		CreateBook(ctx context.Context, book entity.Book) (entity.Book, error)
-		GetBook(ctx context.Context, bookID string) (entity.Book, error)
-		UpdateBook(ctx context.Context, book entity.Book) error
-		GetAuthorBooks(ctx context.Context, authorID string) ([]entity.Book, error)
+		AddBook(ctx context.Context, book *entity.Book) (*entity.Book, error)
+		GetBook(ctx context.Context, bookID string) (*entity.Book, error)
+		UpdateBook(ctx context.Context, bookID string, newBookName string, authorIDs []string) error
+		GetAuthorBooks(ctx context.Context, authorID string) ([]*entity.Book, error)
+	}
+
+	OutboxRepository interface {
+		SendMessage(ctx context.Context, idempotencyKey string, kind OutboxKind, message []byte) error
+		GetMessages(ctx context.Context, batchSize int, inProgressTTL time.Duration) ([]OutboxData, error)
+		MarkAsProcessed(ctx context.Context, idempotencyKeys []string) error
+	}
+
+	Transactor interface {
+		WithTx(ctx context.Context, function func(ctx context.Context) error) error
+	}
+
+	PgxIface interface {
+		Begin(context.Context) (pgx.Tx, error)
+		Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
+		Query(context.Context, string, ...interface{}) (pgx.Rows, error)
+		QueryRow(context.Context, string, ...interface{}) pgx.Row
+	}
+
+	OutboxData struct {
+		IdempotencyKey string
+		Kind           OutboxKind
+		RawData        []byte
 	}
 )
+
+type OutboxKind int
+
+const (
+	OutboxKindUndefined OutboxKind = iota
+	OutboxKindBook
+	OutboxKindAuthor
+)
+
+func (o OutboxKind) String() string {
+	switch o {
+	case OutboxKindBook:
+		return "book"
+	case OutboxKindAuthor:
+		return "auhtor"
+	default:
+		return "undefined"
+	}
+}

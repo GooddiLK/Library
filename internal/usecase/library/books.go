@@ -2,44 +2,65 @@ package library
 
 import (
 	"context"
-	"github.com/google/uuid"
+	"encoding/json"
+
+	"github.com/project/library/internal/usecase/repository"
+	"go.uber.org/zap"
+
 	"github.com/project/library/internal/entity"
 )
 
-func (l *libraryImpl) RegisterBook(ctx context.Context, name string, authorIDs []string) (entity.Book, error) {
-	for _, authorID := range authorIDs {
-		_, err := l.authorRepository.GetAuthorInfo(ctx, authorID)
-		if err != nil {
-			return entity.Book{}, entity.ErrAuthorNotFound
+func (l *libraryImpl) AddBook(ctx context.Context, name string, authorIDs []string) (*entity.Book, error) {
+	var book *entity.Book // Замыкание
+
+	err := l.transactor.WithTx(ctx, func(ctx context.Context) error {
+		l.logger.Debug("Transaction started for AddBook")
+
+		var txErr error
+		book, txErr = l.booksRepository.AddBook(ctx, &entity.Book{
+			Name:      name,
+			AuthorIDs: authorIDs,
+		})
+		if txErr != nil {
+			l.logger.Error("Error adding book to repository:",
+				zap.Error(txErr))
+			return txErr
 		}
+
+		serialized, txErr := json.Marshal(book)
+		if txErr != nil {
+			l.logger.Error("Error serializing book data")
+			return txErr
+		}
+
+		idempotencyKey := repository.OutboxKindBook.String() + "_" + book.ID
+		txErr = l.outboxRepository.SendMessage(
+			ctx, idempotencyKey, repository.OutboxKindBook, serialized)
+		if txErr != nil {
+			l.logger.Error("Error sending message to outbox",
+				zap.Error(txErr))
+			return txErr
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		l.logger.Error("Failed to add book", zap.Error(err))
+		return nil, err
 	}
 
-	return l.booksRepository.CreateBook(ctx, entity.Book{
-		ID:        uuid.New().String(),
-		Name:      name,
-		AuthorIDs: authorIDs,
-	})
+	return book, nil
 }
 
-func (l *libraryImpl) GetBook(ctx context.Context, bookID string) (entity.Book, error) {
+func (l *libraryImpl) GetBook(ctx context.Context, bookID string) (*entity.Book, error) {
 	return l.booksRepository.GetBook(ctx, bookID)
 }
 
-func (l *libraryImpl) UpdateBook(ctx context.Context, id, name string, authorIDs []string) error {
-	for _, authorID := range authorIDs {
-		_, err := l.authorRepository.GetAuthorInfo(ctx, authorID)
-		if err != nil {
-			return entity.ErrAuthorNotFound
-		}
-	}
-
-	return l.booksRepository.UpdateBook(ctx, entity.Book{
-		ID:        id,
-		Name:      name,
-		AuthorIDs: authorIDs,
-	})
+func (l *libraryImpl) UpdateBook(ctx context.Context, bookID string, newBookName string, authorIDs []string) error {
+	return l.booksRepository.UpdateBook(ctx, bookID, newBookName, authorIDs)
 }
 
-func (l *libraryImpl) GetAuthorBooks(ctx context.Context, id string) ([]entity.Book, error) {
-	return l.booksRepository.GetAuthorBooks(ctx, id)
+func (l *libraryImpl) GetAuthorBooks(ctx context.Context, authorID string) ([]*entity.Book, error) {
+	return l.booksRepository.GetAuthorBooks(ctx, authorID)
 }
