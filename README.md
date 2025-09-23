@@ -1,6 +1,8 @@
 # Library
 
 ![тест](docs/scheme/api.png)
+### Схема с outbox:
+![outbox](docs/scheme/outbox.png)
 
 ## API
 
