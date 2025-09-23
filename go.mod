@@ -1,13 +1,13 @@
 module github.com/project/library
 
-go 1.23.4
+go 1.24
 
 require (
 	github.com/envoyproxy/protoc-gen-validate v1.2.1
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.1
 	github.com/jackc/pgx/v5 v5.7.6
-	github.com/pkg/errors v0.9.1
+	github.com/pashagolub/pgxmock/v4 v4.8.0
 	github.com/pressly/goose/v3 v3.25.0
 	github.com/samber/lo v1.47.0
 	github.com/sirupsen/logrus v1.9.3
