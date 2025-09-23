@@ -436,8 +436,13 @@ func getLibraryExecutable(t *testing.T) string {
 	return binaryPath
 }
 
-// var requiredEnv = []string{"POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD"}
-var requiredEnv = make([]string, 0)
+var requiredEnv = []string{
+	"POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD",
+	"POSTGRES_MAX_CONN", "OUTBOX_ENABLED", "OUTBOX_WORKERS", "OUTBOX_BATCH_SIZE",
+	"OUTBOX_WAIT_TIME_MS", "OUTBOX_IN_PROGRESS_TTL_MS", "OUTBOX_BOOK_SEND_URL", "OUTBOX_AUTHOR_SEND_URL",
+}
+
+//var requiredEnv = make([]string, 0)
 
 func setupLibrary(
 	t *testing.T,

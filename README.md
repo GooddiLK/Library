@@ -16,6 +16,7 @@
 
 ## Тестирование в CI
 * Код тестов можно посмотреть в файле [integration_test.go](./integration-test/integration_test.go)
+* Для прохождения тестов необходимо записать переменные окружения для инициализации конфига, см: [README](./cmd/library/README.md)
 
 ## Документация
 [README.md](./docs/README.md) в ./docs
