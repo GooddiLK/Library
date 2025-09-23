@@ -12,11 +12,11 @@ import (
 var _ OutboxRepository = (*outboxRepository)(nil)
 
 type outboxRepository struct {
-	db     PgxIface
+	db     PgxInterface
 	logger *zap.Logger
 }
 
-func NewOutbox(db PgxIface, logger *zap.Logger) *outboxRepository {
+func NewOutbox(db PgxInterface, logger *zap.Logger) *outboxRepository {
 	return &outboxRepository{
 		db:     db,
 		logger: logger,

@@ -35,7 +35,7 @@ type (
 		WithTx(ctx context.Context, function func(ctx context.Context) error) error
 	}
 
-	PgxIface interface {
+	PgxInterface interface {
 		Begin(context.Context) (pgx.Tx, error)
 		Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
 		Query(context.Context, string, ...interface{}) (pgx.Rows, error)

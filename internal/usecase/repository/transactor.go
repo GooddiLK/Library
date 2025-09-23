@@ -13,11 +13,11 @@ import (
 var _ Transactor = (*transactor)(nil)
 
 type transactor struct {
-	db     PgxIface
+	db     PgxInterface
 	logger *zap.Logger
 }
 
-func NewTransactor(db PgxIface, logger *zap.Logger) *transactor {
+func NewTransactor(db PgxInterface, logger *zap.Logger) *transactor {
 	return &transactor{
 		db:     db,
 		logger: logger,
@@ -64,7 +64,7 @@ func (t transactor) WithTx(
 
 func injectTx(
 	ctx context.Context,
-	pool PgxIface,
+	pool PgxInterface,
 ) (context.Context, pgx.Tx, error) {
 	if tx, err := extractTx(ctx); err == nil {
 		return ctx, tx, nil
