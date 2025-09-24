@@ -3,7 +3,7 @@ run:
   issues-exit-code: 1
   tests: true
   allow-parallel-runners: true
-  go: '1.24'
+  go: '1.25.0'
 
 output:
   formats:

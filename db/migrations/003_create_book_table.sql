@@ -1,7 +1,7 @@
 -- +goose Up
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-CREATE TABLE book
+CREATE TABLE IF NOT EXISTS book
 (
     id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name       TEXT                           NOT NULL,
@@ -26,4 +26,4 @@ CREATE OR REPLACE TRIGGER trigger_update_book_timestamp
 EXECUTE FUNCTION update_book_timestamp();
 
 -- +goose Down
-DROP TABLE book;
+DROP TABLE IF EXISTS book;

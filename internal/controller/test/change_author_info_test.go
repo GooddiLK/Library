@@ -5,26 +5,19 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"go.uber.org/mock/gomock"
-	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	"github.com/project/library/generated/api/library"
 	"github.com/project/library/internal/controller"
 	"github.com/project/library/internal/usecase/library/mocks"
 	testutils "github.com/project/library/internal/usecase/library/test"
+	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
-
-// FIXME Необходимо перенести моки в сабтесты при использовании t.Parallel
 
 func Test_ChangeAuthorInfo(t *testing.T) {
 	t.Parallel()
-	ctrl := gomock.NewController(t)
 	logger, _ := zap.NewProduction()
-	authorUseCase := mocks.NewMockAuthorUseCase(ctrl)
-	bookUseCase := mocks.NewMockBooksUseCase(ctrl)
-	service := controller.New(logger, bookUseCase, authorUseCase)
 	ctx := t.Context()
 
 	type args struct {
@@ -81,11 +74,21 @@ func Test_ChangeAuthorInfo(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
+
+			// Создаем моки внутри каждого субтеста
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			authorUseCase := mocks.NewMockAuthorUseCase(ctrl)
+			bookUseCase := mocks.NewMockBooksUseCase(ctrl)
+			service := controller.New(logger, bookUseCase, authorUseCase)
+
 			if test.mocksUsed {
 				authorUseCase.EXPECT().
-					UpdateAuthor(ctx, test.args.req.GetId(), test.args.req.GetName()).
+					ChangeAuthor(ctx, test.args.req.GetId(), test.args.req.GetName()).
 					Return(test.wantErr)
 			}
 

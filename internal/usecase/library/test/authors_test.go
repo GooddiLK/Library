@@ -2,57 +2,63 @@ package library
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
-	"github.com/project/library/internal/entity"
-	"github.com/project/library/internal/usecase/library"
-	"github.com/project/library/internal/usecase/repository/mocks"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+
+	"github.com/project/library/internal/entity"
+	"github.com/project/library/internal/usecase/library"
+	"github.com/project/library/internal/usecase/repository"
+	"github.com/project/library/internal/usecase/repository/mocks"
 )
 
-func TestLibraryImpl_RegisterAuthor(t *testing.T) {
+var defaultAuthor = &entity.Author{
+	ID:   uuid.NewString(),
+	Name: "name",
+}
+
+func TestRegisterAuthor(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	logger, _ := zap.NewProduction()
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	serialized, _ := json.Marshal(defaultAuthor)
+	idempotencyKey := repository.OutboxKindAuthor.String() + "_" + defaultAuthor.ID
 
 	tests := []struct {
-		name        string
-		authorName  string
-		mockSetup   func(authorRepo *mocks.MockAuthorRepository)
-		want        entity.Author
-		wantErr     bool
-		expectedErr error
+		name                  string
+		repositoryRerunAuthor *entity.Author
+		returnAuthor          *entity.Author
+		repositoryErr         error
+		outboxErr             error
 	}{
 		{
-			name:       "register author usecase | successful author registration",
-			authorName: "Aboba",
-			mockSetup: func(authorRepo *mocks.MockAuthorRepository) {
-				authorRepo.EXPECT().
-					CreateAuthor(ctx, gomock.Any()).
-					DoAndReturn(func(ctx context.Context, author entity.Author) (entity.Author, error) {
-						assert.Equal(t, "Aboba", author.Name)
-						assert.NotEmpty(t, author.ID)
-						return author, nil
-					})
-			},
-			want: entity.Author{
-				Name: "Aboba",
-			},
-			wantErr: false,
+			name:                  "register author",
+			repositoryRerunAuthor: defaultAuthor,
+			returnAuthor:          defaultAuthor,
+			repositoryErr:         nil,
+			outboxErr:             nil,
 		},
 		{
-			name:       "register author usecase | repository error",
-			authorName: "Test Author",
-			mockSetup: func(authorRepo *mocks.MockAuthorRepository) {
-				authorRepo.EXPECT().
-					CreateAuthor(ctx, gomock.Any()).
-					Return(entity.Author{}, errors.New("repository error"))
-			},
-			wantErr:     true,
-			expectedErr: errors.New("repository error"),
+			name:                  "register author | repository error",
+			repositoryRerunAuthor: nil,
+			returnAuthor:          nil,
+			repositoryErr:         errors.New("error register author"),
+			outboxErr:             nil,
+		},
+		{
+			name:                  "register author | outbox error",
+			repositoryRerunAuthor: defaultAuthor,
+			returnAuthor:          nil,
+			repositoryErr:         nil,
+			outboxErr:             errors.New("outbox error"),
 		},
 	}
 
@@ -60,80 +66,71 @@ func TestLibraryImpl_RegisterAuthor(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
+			mockAuthorRepo := mocks.NewMockAuthorRepository(ctrl)
+			mockOutboxRepo := mocks.NewMockOutboxRepository(ctrl)
+			mockTransactor := mocks.NewMockTransactor(ctrl)
+			logger, _ := zap.NewProduction()
+			useCase := library.New(logger, mockAuthorRepo,
+				nil, mockOutboxRepo, mockTransactor)
+			ctx := t.Context()
 
-			authorRepo := mocks.NewMockAuthorRepository(ctrl)
-			bookRepo := mocks.NewMockBooksRepository(ctrl)
-			repo := library.New(logger, authorRepo, bookRepo)
+			mockTransactor.EXPECT().WithTx(ctx, gomock.Any()).DoAndReturn(
+				func(ctx context.Context, fn func(ctx context.Context) error) error {
+					return fn(ctx)
+				})
 
-			if test.mockSetup != nil {
-				test.mockSetup(authorRepo)
+			mockAuthorRepo.EXPECT().RegisterAuthor(ctx, gomock.Any()).
+				Return(test.repositoryRerunAuthor, test.repositoryErr)
+
+			if test.repositoryErr == nil {
+				mockOutboxRepo.EXPECT().SendMessage(ctx, idempotencyKey,
+					repository.OutboxKindAuthor, serialized).Return(test.outboxErr)
 			}
+			var (
+				resultAuthor *entity.Author
+				err          error
+			)
 
-			got, err := repo.RegisterAuthor(ctx, test.authorName)
-
-			if test.wantErr {
-				assert.Error(t, err)
-				if test.expectedErr != nil {
-					assert.Equal(t, test.expectedErr.Error(), err.Error())
-				}
+			if test.repositoryRerunAuthor == nil {
+				resultAuthor, err = useCase.RegisterAuthor(ctx, defaultAuthor.Name)
 			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, test.want.Name, got.Name)
-				assert.NotEmpty(t, got.ID)
+				resultAuthor, err = useCase.RegisterAuthor(ctx, test.repositoryRerunAuthor.Name)
 			}
+
+			switch {
+			case test.outboxErr == nil && test.repositoryErr == nil:
+				require.NoError(t, err)
+			case test.outboxErr != nil:
+				require.ErrorIs(t, err, test.outboxErr)
+			case test.repositoryErr != nil:
+				require.ErrorIs(t, err, test.repositoryErr)
+			}
+
+			assert.Equal(t, test.returnAuthor, resultAuthor)
 		})
 	}
 }
 
-func TestLibraryImpl_UpdateAuthor(t *testing.T) {
+func TestGetAuthorInfo(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	logger, _ := zap.NewProduction()
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
 
 	tests := []struct {
-		name        string
-		authorID    string
-		authorName  string
-		mockSetup   func(authorRepo *mocks.MockAuthorRepository)
-		wantErr     bool
-		expectedErr error
+		name                  string
+		repositoryRerunAuthor *entity.Author
+		wantErr               error
+		wantErrCode           codes.Code
 	}{
 		{
-			name:       "update author usecase | successful update",
-			authorID:   "7a948d89-108c-4133-be30-788bd453c0cd",
-			authorName: "Updated Author Name",
-			mockSetup: func(authorRepo *mocks.MockAuthorRepository) {
-				authorRepo.EXPECT().
-					UpdateAuthor(ctx, "7a948d89-108c-4133-be30-788bd453c0cd", "Updated Author Name").
-					Return(nil)
-			},
-			wantErr: false,
+			name:                  "get author info",
+			repositoryRerunAuthor: defaultAuthor,
 		},
 		{
-			name:       "update author usecase | repository error",
-			authorID:   "7a948d89-108c-4133-be30-788bd453c0cd",
-			authorName: "Updated Author Name",
-			mockSetup: func(authorRepo *mocks.MockAuthorRepository) {
-				authorRepo.EXPECT().
-					UpdateAuthor(ctx, "7a948d89-108c-4133-be30-788bd453c0cd", "Updated Author Name").
-					Return(errors.New("repository error"))
-			},
-			wantErr:     true,
-			expectedErr: errors.New("repository error"),
-		},
-		{
-			name:       "update author usecase | author not found",
-			authorID:   "non-existent-id",
-			authorName: "Updated Author Name",
-			mockSetup: func(authorRepo *mocks.MockAuthorRepository) {
-				authorRepo.EXPECT().
-					UpdateAuthor(ctx, "non-existent-id", "Updated Author Name").
-					Return(entity.ErrAuthorNotFound)
-			},
-			wantErr:     true,
-			expectedErr: entity.ErrAuthorNotFound,
+			name:                  "get author info | with error",
+			repositoryRerunAuthor: defaultAuthor,
+			wantErr:               entity.ErrAuthorNotFound,
+			wantErrCode:           codes.NotFound,
 		},
 	}
 
@@ -141,76 +138,41 @@ func TestLibraryImpl_UpdateAuthor(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
+			mockAuthorRepo := mocks.NewMockAuthorRepository(ctrl)
+			logger, _ := zap.NewProduction()
+			useCase := library.New(logger, mockAuthorRepo,
+				nil, nil, nil)
+			ctx := t.Context()
 
-			authorRepo := mocks.NewMockAuthorRepository(ctrl)
-			bookRepo := mocks.NewMockBooksRepository(ctrl)
-			repo := library.New(logger, authorRepo, bookRepo)
+			mockAuthorRepo.EXPECT().GetAuthorInfo(ctx, test.repositoryRerunAuthor.ID).Return(test.repositoryRerunAuthor, test.wantErr)
 
-			if test.mockSetup != nil {
-				test.mockSetup(authorRepo)
-			}
-
-			err := repo.UpdateAuthor(ctx, test.authorID, test.authorName)
-
-			if test.wantErr {
-				assert.Error(t, err)
-				if test.expectedErr != nil {
-					assert.Equal(t, test.expectedErr, err)
-				}
-			} else {
-				assert.NoError(t, err)
-			}
+			got, wantErr := useCase.GetAuthorInfo(ctx, test.repositoryRerunAuthor.ID)
+			CheckError(t, wantErr, test.wantErrCode)
+			assert.Equal(t, test.repositoryRerunAuthor, got)
 		})
 	}
 }
 
-func TestLibraryImpl_GetAuthorInfo(t *testing.T) {
+func TestChangeAuthor(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	logger, _ := zap.NewProduction()
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
 
 	tests := []struct {
-		name        string
-		authorID    string
-		mockSetup   func(authorRepo *mocks.MockAuthorRepository)
-		want        string
-		wantErr     bool
-		expectedErr error
+		name                  string
+		repositoryRerunAuthor *entity.Author
+		wantErr               error
+		wantErrCode           codes.Code
 	}{
 		{
-			name:     "get author info usecase | successful get",
-			authorID: "7a948d89-108c-4133-be30-788bd453c0cd",
-			mockSetup: func(authorRepo *mocks.MockAuthorRepository) {
-				authorRepo.EXPECT().
-					GetAuthorInfo(ctx, "7a948d89-108c-4133-be30-788bd453c0cd").
-					Return("Author Name", nil)
-			},
-			want:    "Author Name",
-			wantErr: false,
+			name:                  "change author",
+			repositoryRerunAuthor: defaultAuthor,
 		},
 		{
-			name:     "get author info usecase | repository error",
-			authorID: "7a948d89-108c-4133-be30-788bd453c0cd",
-			mockSetup: func(authorRepo *mocks.MockAuthorRepository) {
-				authorRepo.EXPECT().
-					GetAuthorInfo(ctx, "7a948d89-108c-4133-be30-788bd453c0cd").
-					Return("", errors.New("repository error"))
-			},
-			wantErr:     true,
-			expectedErr: errors.New("repository error"),
-		},
-		{
-			name:     "get author info usecase | author not found",
-			authorID: "no-existent-id",
-			mockSetup: func(authorRepo *mocks.MockAuthorRepository) {
-				authorRepo.EXPECT().
-					GetAuthorInfo(ctx, "no-existent-id").
-					Return("", entity.ErrAuthorNotFound)
-			},
-			wantErr:     true,
-			expectedErr: entity.ErrAuthorNotFound,
+			name:                  "change author | with error",
+			repositoryRerunAuthor: defaultAuthor,
+			wantErr:               entity.ErrAuthorNotFound,
+			wantErrCode:           codes.NotFound,
 		},
 	}
 
@@ -218,28 +180,16 @@ func TestLibraryImpl_GetAuthorInfo(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
+			mockAuthorRepo := mocks.NewMockAuthorRepository(ctrl)
+			logger, _ := zap.NewProduction()
+			useCase := library.New(logger, mockAuthorRepo,
+				nil, nil, nil)
+			ctx := t.Context()
 
-			authorRepo := mocks.NewMockAuthorRepository(ctrl)
-			bookRepo := mocks.NewMockBooksRepository(ctrl)
-			repo := library.New(logger, authorRepo, bookRepo)
+			mockAuthorRepo.EXPECT().ChangeAuthor(ctx, test.repositoryRerunAuthor.ID, test.repositoryRerunAuthor.Name).Return(test.wantErr)
 
-			if test.mockSetup != nil {
-				test.mockSetup(authorRepo)
-			}
-
-			got, err := repo.GetAuthorInfo(ctx, test.authorID)
-
-			if test.wantErr {
-				assert.Error(t, err)
-				if test.expectedErr != nil {
-					assert.Equal(t, test.expectedErr, err)
-				}
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, test.want, got)
-			}
+			wantErr := useCase.ChangeAuthor(ctx, test.repositoryRerunAuthor.ID, test.repositoryRerunAuthor.Name)
+			CheckError(t, wantErr, test.wantErrCode)
 		})
 	}
 }

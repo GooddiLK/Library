@@ -2,36 +2,57 @@ package library
 
 import (
 	"context"
+	"encoding/json"
 
-	"github.com/google/uuid"
+	"github.com/project/library/internal/usecase/repository"
+	"go.uber.org/zap"
+
 	"github.com/project/library/internal/entity"
 )
 
-func (l *libraryImpl) RegisterAuthor(ctx context.Context, authorName string) (entity.Author, error) {
-	author, err := l.authorRepository.CreateAuthor(ctx, entity.Author{
-		ID:   uuid.New().String(),
-		Name: authorName,
-	})
+func (l *libraryImpl) RegisterAuthor(ctx context.Context, authorName string) (*entity.Author, error) {
+	var author *entity.Author
 
+	err := l.transactor.WithTx(ctx, func(ctx context.Context) error {
+		l.logger.Debug("Transaction started for RegisterAuthor")
+
+		var txErr error
+		author, txErr = l.authorRepository.RegisterAuthor(ctx, &entity.Author{
+			Name: authorName,
+		})
+		if txErr != nil {
+			l.logger.Error("Error adding author to repository: ", zap.Error(txErr))
+			return txErr
+		}
+
+		serialized, txErr := json.Marshal(author)
+		if txErr != nil {
+			l.logger.Error("Error serializing author data")
+			return txErr
+		}
+
+		idempotencyKey := repository.OutboxKindAuthor.String() + "_" + author.ID
+		txErr = l.outboxRepository.SendMessage(
+			ctx, idempotencyKey, repository.OutboxKindAuthor, serialized)
+		if txErr != nil {
+			l.logger.Error("Error sending message to outbox: ", zap.Error(txErr))
+			return txErr
+		}
+
+		return nil
+	})
 	if err != nil {
-		return entity.Author{}, err
+		l.logger.Error("Failed to register author: ", zap.Error(err))
+		return nil, err
 	}
 
 	return author, nil
 }
 
-func (l *libraryImpl) UpdateAuthor(ctx context.Context, id, name string) error {
-	err := l.authorRepository.UpdateAuthor(ctx, id, name)
-
-	return err
+func (l *libraryImpl) GetAuthorInfo(ctx context.Context, authorID string) (*entity.Author, error) {
+	return l.authorRepository.GetAuthorInfo(ctx, authorID)
 }
 
-func (l *libraryImpl) GetAuthorInfo(ctx context.Context, id string) (string, error) {
-	authorName, err := l.authorRepository.GetAuthorInfo(ctx, id)
-
-	if err != nil {
-		return "", err
-	}
-
-	return authorName, nil
+func (l *libraryImpl) ChangeAuthor(ctx context.Context, authorID string, newAuthorName string) error {
+	return l.authorRepository.ChangeAuthor(ctx, authorID, newAuthorName)
 }

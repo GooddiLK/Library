@@ -3,21 +3,31 @@ package controller
 import (
 	"context"
 
-	"github.com/project/library/generated/api/library"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/project/library/generated/api/library"
 )
 
-func (i *implementation) GetAuthorInfo(ctx context.Context, req *library.GetAuthorInfoRequest) (*library.GetAuthorInfoResponse, error) {
+func (i *impl) GetAuthorInfo(ctx context.Context, req *library.GetAuthorInfoRequest) (*library.GetAuthorInfoResponse, error) {
+	i.logger.Debug("Received GetAuthorInfo request",
+		zap.String("authorId: ", req.GetId()))
+
 	if err := req.ValidateAll(); err != nil {
+		i.logger.Error("Invalid GetAuthorInfo request: ", zap.Error(err))
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	authorName, err := i.authorUseCase.GetAuthorInfo(ctx, req.GetId())
+	author, err := i.authorUseCase.GetAuthorInfo(ctx, req.GetId())
 
 	if err != nil {
-		return nil, i.convertErr(err)
+		i.logger.Error("Failed to get author info: ", zap.Error(err))
+		return nil, i.ConvertErr(err)
 	}
 
-	return &library.GetAuthorInfoResponse{Id: req.GetId(), Name: authorName}, nil
+	return &library.GetAuthorInfoResponse{
+		Id:   author.ID,
+		Name: author.Name,
+	}, nil
 }

@@ -1,4 +1,4 @@
-package controller_test
+package controller
 
 import (
 	"context"
@@ -21,19 +21,9 @@ import (
 // На уровне контроллеров тестируется лишь валидация
 // И корректное возвращение данных
 
-// Тесты в пакете написаны с ошибкой, моки необходимо инициализировать для каждого сабтеста при использовании t.Parallel
-// P.s. но работают корректно(удача)
-
-// FIXME Необходимо перенести моки в сабтесты при использовании t.Parallel
-
 func Test_AddBook(t *testing.T) {
-	t.Parallel()                    // Разрешение на параллельный запуск тестов в рамках 1 пакета
-	ctrl := gomock.NewController(t) // Управление жизненным циклом моков
+	t.Parallel() // Разрешение на параллельный запуск тестов в рамках 1 пакета
 	logger, _ := zap.NewProduction()
-	authorUseCase := mocks.NewMockAuthorUseCase(ctrl)
-	bookUseCase := mocks.NewMockBooksUseCase(ctrl)
-	// Создаем grpc сервер с внедренными моками
-	service := controller.New(logger, bookUseCase, authorUseCase)
 	ctx := t.Context()
 
 	type args struct {
@@ -53,8 +43,8 @@ func Test_AddBook(t *testing.T) {
 			name: "add book | without authors",
 			args: args{ctx,
 				&library.AddBookRequest{
-					Name:      "book1",
-					AuthorIds: make([]string, 0),
+					Name:     "book1",
+					AuthorId: make([]string, 0),
 				},
 			},
 			want: &entity.Book{
@@ -70,8 +60,8 @@ func Test_AddBook(t *testing.T) {
 			name: "add book | with authors",
 			args: args{ctx,
 				&library.AddBookRequest{
-					Name:      "book2",
-					AuthorIds: []string{"7a948d89-108c-4133-be30-788bd453c0cd"},
+					Name:     "book2",
+					AuthorId: []string{"7a948d89-108c-4133-be30-788bd453c0cd"},
 				},
 			},
 			want: &entity.Book{
@@ -88,8 +78,8 @@ func Test_AddBook(t *testing.T) {
 			args: args{
 				ctx,
 				&library.AddBookRequest{
-					Name:      "book",
-					AuthorIds: []string{"1"},
+					Name:     "book",
+					AuthorId: []string{"1"},
 				},
 			},
 
@@ -103,8 +93,8 @@ func Test_AddBook(t *testing.T) {
 			args: args{
 				ctx,
 				&library.AddBookRequest{
-					Name:      "",
-					AuthorIds: make([]string, 0),
+					Name:     "",
+					AuthorId: make([]string, 0),
 				},
 			},
 			wantErrCode: codes.InvalidArgument,
@@ -114,14 +104,26 @@ func Test_AddBook(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
+
+			// Создаем моки внутри каждого субтеста
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			authorUseCase := mocks.NewMockAuthorUseCase(ctrl)
+			bookUseCase := mocks.NewMockBooksUseCase(ctrl)
+
+			// Создаем grpc сервер с внедренными моками
+			service := controller.New(logger, bookUseCase, authorUseCase)
+
 			if test.mocksUsed {
 				bookUseCase.
 					// Описание действий заглушки
 					EXPECT().
-					RegisterBook(ctx, test.args.req.GetName(), test.args.req.GetAuthorIds()).
-					Return(*test.want, test.wantErr)
+					AddBook(ctx, test.args.req.GetName(), test.args.req.GetAuthorId()).
+					Return(test.want, test.wantErr)
 			}
 
 			got, err := service.AddBook(test.args.ctx, test.args.req)
