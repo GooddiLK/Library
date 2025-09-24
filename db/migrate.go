@@ -14,15 +14,15 @@ import (
 var embedMigrations embed.FS // Виртуальная файловая система
 
 func SetupPostgres(pool *pgxpool.Pool, logger *zap.Logger) {
-	goose.SetBaseFS(embedMigrations)
+	goose.SetBaseFS(embedMigrations) // Связь goose с миграциями
 	if err := goose.SetDialect("postgres"); err != nil {
-		logger.Error("can not set dialect in goose", zap.Error(err))
+		logger.Error("can not set dialect in goose: ", zap.Error(err))
 		os.Exit(-1)
 	}
 
 	db := stdlib.OpenDBFromPool(pool)
 	if err := goose.Up(db, "migrations"); err != nil {
-		logger.Error("can not setup migrations", zap.Error(err))
+		logger.Error("can not setup migrations: ", zap.Error(err))
 		os.Exit(-1)
 	}
 }
