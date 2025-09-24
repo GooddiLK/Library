@@ -33,7 +33,7 @@ func (o *outboxRepository) SendMessage(
 		INSERT INTO outbox (idempotency_key, data, status, kind)
 		VALUES($1, $2, 'CREATED', $3)
 		ON CONFLICT (idempotency_key) DO NOTHING -- Если уже существует, скип
-`
+	`
 
 	var err error
 	if tx, txErr := extractTx(ctx); txErr == nil {

@@ -30,4 +30,6 @@ func runGrpc(cfg *config.Config, logger *zap.Logger, libraryService generated.Li
 	if err = s.Serve(lis); err != nil {
 		logger.Error("grpc server listen error: ", zap.Error(err))
 	}
+
+	// Можно было бы добавить остановку
 }

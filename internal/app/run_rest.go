@@ -35,4 +35,6 @@ func runRest(ctx context.Context, cfg *config.Config, logger *zap.Logger) {
 	if err = http.ListenAndServe(gatewayPort, mux); err != nil {
 		logger.Error("gateway listen error: ", zap.Error(err))
 	}
+
+	// Можно было бы добавить остановку
 }
