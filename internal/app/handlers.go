@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"strings"
+
 	"github.com/project/library/internal/entity"
 	"github.com/project/library/internal/usecase/outbox"
 	"github.com/project/library/internal/usecase/repository"
-	"net/http"
-	"strings"
 )
 
 func globalOutboxHandler(

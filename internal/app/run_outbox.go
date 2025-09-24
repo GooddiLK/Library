@@ -2,13 +2,14 @@ package app
 
 import (
 	"context"
+	"net"
+	"net/http"
+	"time"
+
 	"github.com/project/library/config"
 	"github.com/project/library/internal/usecase/outbox"
 	"github.com/project/library/internal/usecase/repository"
 	"go.uber.org/zap"
-	"net"
-	"net/http"
-	"time"
 )
 
 const (

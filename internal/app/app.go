@@ -24,6 +24,7 @@ func Run(logger *zap.Logger, cfg *config.Config) {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	// Подключение к бд
 	dbPool, err := pgxpool.New(ctx, cfg.PG.URL)
 	if err != nil {
 		logger.Error("can not create pgxpool: ", zap.Error(err))
@@ -32,7 +33,7 @@ func Run(logger *zap.Logger, cfg *config.Config) {
 
 	defer dbPool.Close()
 
-	// Накатить миграции и подключиться к бд
+	// Накатывание миграций
 	db.SetupPostgres(dbPool, logger)
 
 	repo := repository.NewPostgresRepository(dbPool, logger)
@@ -42,8 +43,6 @@ func Run(logger *zap.Logger, cfg *config.Config) {
 	runOutbox(ctx, cfg, logger, outboxRepository, transactor)
 
 	useCases := library.New(logger, repo, repo, outboxRepository, transactor)
-
-	// Создание самого сервера
 	ctrl := controller.New(logger, useCases, useCases)
 
 	go runRest(ctx, cfg, logger)

@@ -20,7 +20,9 @@ func SetupPostgres(pool *pgxpool.Pool, logger *zap.Logger) {
 		os.Exit(-1)
 	}
 
+	// Адаптер pgxpool к стандартному интерфейсу - *sql.DB
 	db := stdlib.OpenDBFromPool(pool)
+	// Накатывание миграций
 	if err := goose.Up(db, "migrations"); err != nil {
 		logger.Error("can not setup migrations: ", zap.Error(err))
 		os.Exit(-1)

@@ -1,13 +1,14 @@
 package app
 
 import (
+	"net"
+	"os"
+
 	"github.com/project/library/config"
 	generated "github.com/project/library/generated/api/library"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"net"
-	"os"
 )
 
 func runGrpc(cfg *config.Config, logger *zap.Logger, libraryService generated.LibraryServer) {
