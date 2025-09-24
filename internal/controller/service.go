@@ -9,6 +9,7 @@ import (
 
 var _ generated.LibraryServer = (*impl)(nil)
 
+// impl реализует все методы gRPC API. Валидирует запрос и вызывает бизнес-логику.
 type impl struct {
 	generated.UnimplementedLibraryServer
 	logger        *zap.Logger

@@ -13,18 +13,18 @@ import (
 
 func (i *impl) AddBook(ctx context.Context, req *library.AddBookRequest) (*library.AddBookResponse, error) {
 	i.logger.Debug("Received AddBook request",
-		zap.String("book name", req.GetName()),
-		zap.Strings("author IDs", req.GetAuthorId()))
+		zap.String("book name: ", req.GetName()),
+		zap.Strings("author IDs: ", req.GetAuthorId()))
 
 	if err := req.ValidateAll(); err != nil {
-		i.logger.Error("Invalid AddBook request", zap.Error(err))
+		i.logger.Error("Invalid AddBook request: ", zap.Error(err))
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	book, err := i.booksUseCase.AddBook(ctx, req.GetName(), req.GetAuthorId())
 
 	if err != nil {
-		i.logger.Error("Failed to add book", zap.Error(err))
+		i.logger.Error("Failed to add book: ", zap.Error(err))
 		return nil, i.ConvertErr(err)
 	}
 

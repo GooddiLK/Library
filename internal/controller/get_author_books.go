@@ -13,17 +13,17 @@ import (
 
 func (i *impl) GetAuthorBooks(req *library.GetAuthorBooksRequest, server library.Library_GetAuthorBooksServer) error {
 	i.logger.Debug("Received GetAuthorBooks request",
-		zap.String("author Id", req.GetAuthorId()))
+		zap.String("author Id: ", req.GetAuthorId()))
 
 	if err := req.ValidateAll(); err != nil {
-		i.logger.Error("Invalid GetAuthorBooks request", zap.Error(err))
+		i.logger.Error("Invalid GetAuthorBooks request: ", zap.Error(err))
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	books, err := i.booksUseCase.GetAuthorBooks(context.Background(), req.GetAuthorId())
 
 	if err != nil {
-		i.logger.Error("Failed to get author books", zap.Error(err))
+		i.logger.Error("Failed to get author books: ", zap.Error(err))
 		return i.ConvertErr(err)
 	}
 

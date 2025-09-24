@@ -12,17 +12,18 @@ import (
 )
 
 func (i *impl) GetBookInfo(ctx context.Context, req *library.GetBookInfoRequest) (*library.GetBookInfoResponse, error) {
-	i.logger.Debug("Received GetBook request", zap.String("book ID", req.GetId()))
+	i.logger.Debug("Received GetBookInfo request",
+		zap.String("book ID: ", req.GetId()))
 
 	if err := req.ValidateAll(); err != nil {
-		i.logger.Error("Invalid GetBook request", zap.Error(err))
+		i.logger.Error("Invalid GetBookInfo request: ", zap.Error(err))
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	book, err := i.booksUseCase.GetBook(ctx, req.GetId())
 
 	if err != nil {
-		i.logger.Error("Failed to get book", zap.Error(err))
+		i.logger.Error("Failed to get book: ", zap.Error(err))
 		return nil, i.ConvertErr(err)
 	}
 
