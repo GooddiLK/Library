@@ -21,8 +21,7 @@ func (l *libraryImpl) RegisterAuthor(ctx context.Context, authorName string) (*e
 			Name: authorName,
 		})
 		if txErr != nil {
-			l.logger.Error("Error adding author to repository:",
-				zap.Error(txErr))
+			l.logger.Error("Error adding author to repository: ", zap.Error(txErr))
 			return txErr
 		}
 
@@ -36,16 +35,14 @@ func (l *libraryImpl) RegisterAuthor(ctx context.Context, authorName string) (*e
 		txErr = l.outboxRepository.SendMessage(
 			ctx, idempotencyKey, repository.OutboxKindAuthor, serialized)
 		if txErr != nil {
-			l.logger.Error("Error sending message to outbox",
-				zap.Error(txErr))
+			l.logger.Error("Error sending message to outbox: ", zap.Error(txErr))
 			return txErr
 		}
 
 		return nil
 	})
 	if err != nil {
-		l.logger.Error("Failed to register author",
-			zap.Error(err))
+		l.logger.Error("Failed to register author: ", zap.Error(err))
 		return nil, err
 	}
 

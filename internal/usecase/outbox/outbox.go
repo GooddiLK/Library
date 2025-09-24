@@ -16,7 +16,7 @@ type KindHandler = func(ctx context.Context, data []byte) error
 
 type Outbox interface {
 	Start(ctx context.Context, workers int, batchSize int,
-		waitTime time.Duration, v time.Duration)
+		waitTime time.Duration, inProgressTTL time.Duration)
 }
 
 var _ Outbox = (*outboxImpl)(nil)
@@ -26,7 +26,7 @@ type outboxImpl struct {
 	outboxRepository repository.OutboxRepository
 	globalHandler    GlobalHandler
 	cfg              *config.Config
-	transactor       repository.Transactor // Чтобы несколько воркеров не
+	transactor       repository.Transactor
 }
 
 func New(
@@ -49,13 +49,13 @@ func (o outboxImpl) Start(
 	ctx context.Context,
 	workers int, batchSize int,
 	waitTime time.Duration,
-	v time.Duration,
+	inProgressTTL time.Duration,
 ) {
 	wg := new(sync.WaitGroup)
 
 	for workerID := 1; workerID <= workers; workerID++ {
 		wg.Add(1)
-		go o.worker(ctx, wg, batchSize, waitTime, v)
+		go o.worker(ctx, wg, batchSize, waitTime, inProgressTTL)
 	}
 }
 
@@ -63,25 +63,23 @@ func (o *outboxImpl) worker(
 	ctx context.Context,
 	wg *sync.WaitGroup,
 	batchSize int,
-	waitTIme time.Duration,
-	v time.Duration,
+	waitTime time.Duration,
+	inProgressTTL time.Duration,
 ) {
 	defer wg.Done()
 
 	for {
-		time.Sleep(waitTIme)
+		time.Sleep(waitTime)
 
 		if !o.cfg.Outbox.Enabled {
-			continue
+			break
 		}
 
 		err := o.transactor.WithTx(ctx, func(ctx context.Context) error {
-			messages, err := o.outboxRepository.GetMessages(
-				ctx, batchSize, v)
+			messages, err := o.outboxRepository.GetMessages(ctx, batchSize, inProgressTTL)
 
 			if err != nil {
-				o.logger.Error("can not fetch messages from outbox",
-					zap.Error(err))
+				o.logger.Error("can not fetch messages from outbox: ", zap.Error(err))
 				return err
 			}
 
@@ -95,14 +93,14 @@ func (o *outboxImpl) worker(
 				kindHandler, err = o.globalHandler(message.Kind)
 
 				if err != nil {
-					o.logger.Error("unexpected kind", zap.Error(err))
+					o.logger.Error("unexpected kind: ", zap.Error(err))
 					continue
 				}
 
 				err = kindHandler(ctx, message.RawData)
 
 				if err != nil {
-					o.logger.Error("kind error", zap.Error(err))
+					o.logger.Error("kind error: ", zap.Error(err))
 					continue
 				}
 
@@ -111,8 +109,7 @@ func (o *outboxImpl) worker(
 
 			err = o.outboxRepository.MarkAsProcessed(ctx, successKeys)
 			if err != nil {
-				o.logger.Error("mark as processed outbox error",
-					zap.Error(err))
+				o.logger.Error("mark as processed outbox error: ", zap.Error(err))
 				return err
 			}
 
@@ -120,8 +117,7 @@ func (o *outboxImpl) worker(
 		})
 
 		if err != nil {
-			o.logger.Error("worker stage error",
-				zap.Error(err))
+			o.logger.Error("worker stage error: ", zap.Error(err))
 		}
 	}
 }
