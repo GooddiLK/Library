@@ -24,11 +24,13 @@ func NewTransactor(db PgxInterface, logger *zap.Logger) *transactor {
 	}
 }
 
+// txInjector используется для защиты доступа к транзакции т.к. структура приватная,
+// вне пакета к ней нет доступа -> транзакцию из контекста не получить
 type txInjector struct{}
 
-var ErrTxNotFound = status.Error(codes.NotFound,
-	"tx not found in ctx")
+var ErrTxNotFound = status.Error(codes.NotFound, "tx not found in ctx")
 
+// WithTx реализует атомарное исполнение передаваемой функции
 func (t transactor) WithTx(
 	ctx context.Context,
 	function func(ctx context.Context) error,
@@ -39,6 +41,7 @@ func (t transactor) WithTx(
 			"can not inject transaction, error: %w", err)
 	}
 
+	// В случае возникновения ошибки в процессе выполнения функции, транзакция отменяется.
 	defer func() {
 		if txErr != nil {
 			err = tx.Rollback(ctxWithTx)
@@ -62,6 +65,7 @@ func (t transactor) WithTx(
 	return nil
 }
 
+// Возвращает контекст с транзакцией и транзакцию, создавая их при необходимости
 func injectTx(
 	ctx context.Context,
 	pool PgxInterface,

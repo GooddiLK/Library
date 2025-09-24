@@ -31,10 +31,13 @@ type (
 		MarkAsProcessed(ctx context.Context, idempotencyKeys []string) error
 	}
 
+	// Transactor позволяет атомарно исполнить передаваемую функцию,
+	// используя транзакцию из контеста, создавая ее при необходимости.
 	Transactor interface {
 		WithTx(ctx context.Context, function func(ctx context.Context) error) error
 	}
 
+	// PgxInterface объявляет используемые методы pgxpool
 	PgxInterface interface {
 		Begin(context.Context) (pgx.Tx, error)
 		Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
