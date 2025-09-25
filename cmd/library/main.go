@@ -1,12 +1,13 @@
 package main
 
 import (
+	"os"
+
 	"github.com/project/library/config"
 	"github.com/project/library/internal/app"
 	log "github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"os"
 )
 
 func main() {

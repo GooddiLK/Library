@@ -24,16 +24,16 @@ func runRest(ctx context.Context, cfg *config.Config, logger *zap.Logger) {
 	err := generated.RegisterLibraryHandlerFromEndpoint(ctx, mux, address, opts)
 
 	if err != nil {
-		logger.Error("can not register grpc gateway: ", zap.Error(err))
+		logger.Error("Can not register grpc gateway.", zap.Error(err))
 		os.Exit(-1)
 	}
 
 	gatewayPort := ":" + cfg.GatewayPort
-	logger.Info("gateway listening at port: ", zap.String("port", gatewayPort))
+	logger.Info("Gateway listening.", zap.String("port", gatewayPort))
 
 	// Запуск http сервера
 	if err = http.ListenAndServe(gatewayPort, mux); err != nil {
-		logger.Error("gateway listen error: ", zap.Error(err))
+		logger.Error("Gateway listen error.", zap.Error(err))
 	}
 
 	// Можно было бы добавить остановку

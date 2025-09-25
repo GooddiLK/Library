@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -19,6 +18,8 @@ var _ BooksRepository = (*postgresRepository)(nil)
 
 var ErrForeignKeyViolation = &pgconn.PgError{Code: "23503"}
 
+const layerPost = "postgres"
+
 type postgresRepository struct {
 	db     *pgxpool.Pool
 	logger *zap.Logger
@@ -32,6 +33,8 @@ func NewPostgresRepository(db *pgxpool.Pool, logger *zap.Logger) *postgresReposi
 }
 
 func (p *postgresRepository) AddBook(ctx context.Context, book *entity.Book) (resBook *entity.Book, txErr error) {
+	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to add book.", layerPost, "book_id", book.ID)
+
 	tx, rollback, err := p.beginTx(ctx)
 	if err != nil {
 		return nil, err
@@ -90,6 +93,8 @@ func (p *postgresRepository) GetBook(ctx context.Context, bookID string) (*entit
   			book.id;
 	`
 
+	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to get book", layerPost, "book_id", bookID)
+
 	var book entity.Book
 	var authorIDs []uuid.UUID
 	err := p.db.QueryRow(ctx, GetQueryBook, bookID).
@@ -105,6 +110,8 @@ func (p *postgresRepository) GetBook(ctx context.Context, bookID string) (*entit
 }
 
 func (p *postgresRepository) UpdateBook(ctx context.Context, bookID string, newBookName string, authorIDs []string) (txErr error) {
+	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to update book.", layerPost, "book_id", bookID)
+
 	tx, rollback, err := p.beginTx(ctx)
 	if err != nil {
 		return err
@@ -163,6 +170,8 @@ func (p *postgresRepository) GetAuthorBooks(ctx context.Context, authorID string
 			book.id;
 	`
 
+	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to get author books.", layerPost, "author_id", authorID)
+
 	rows, err := p.db.Query(ctx, GetBooksWithAuthors, authorID)
 
 	if err != nil {
@@ -189,6 +198,8 @@ func (p *postgresRepository) GetAuthorBooks(ctx context.Context, authorID string
 }
 
 func (p *postgresRepository) RegisterAuthor(ctx context.Context, author *entity.Author) (retAuthor *entity.Author, txErr error) {
+	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to register author.", layerPost, "author_id", author.ID)
+
 	tx, rollback, err := p.beginTx(ctx)
 	if err != nil {
 		return nil, err
@@ -221,6 +232,8 @@ func (p *postgresRepository) GetAuthorInfo(ctx context.Context, authorID string)
 		WHERE id = $1;
 	`
 
+	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to get author info.", layerPost, "author_id", authorID)
+
 	var author entity.Author
 	err := p.db.QueryRow(ctx, GetQueryAuthor, authorID).
 		Scan(&author.ID, &author.Name)
@@ -233,6 +246,8 @@ func (p *postgresRepository) GetAuthorInfo(ctx context.Context, authorID string)
 }
 
 func (p *postgresRepository) ChangeAuthor(ctx context.Context, authorID string, newAuthorName string) (txErr error) {
+	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to change author", layerPost, "author_id", authorID)
+
 	tx, rollback, err := p.beginTx(ctx)
 	if err != nil {
 		return err
@@ -267,15 +282,18 @@ func (p *postgresRepository) beginTx(
 
 		rollbackFunc = func(txErr error) {
 			if txErr != nil {
+				entity.SendLoggerInfo(p.logger, ctx, "Start rollback transaction.", layerPost)
+
 				err := tx.Rollback(ctx)
+
 				if err != nil {
-					p.logger.Info("Failed to rollback transaction.", zap.Error(err))
+					entity.SendLoggerInfo(p.logger, ctx, "Failed to rollback transaction.", layerPost)
 				}
 				return
 			}
 			err := tx.Commit(ctx)
 			if err != nil {
-				p.logger.Info("Failed to commit transaction.", zap.Error(err))
+				entity.SendLoggerInfo(p.logger, ctx, "Failed to commit transaction.", layerPost)
 			}
 		}
 	}

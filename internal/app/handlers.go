@@ -24,7 +24,7 @@ func globalOutboxHandler(
 		case repository.OutboxKindAuthor:
 			return authorOutboxHandler(client, authorURL), nil
 		default:
-			return nil, fmt.Errorf("unsupported outbox kind: %d", kind)
+			return nil, fmt.Errorf("Unsupported outbox kind: %d", kind)
 		}
 	}
 }
@@ -37,7 +37,7 @@ func outboxHandler(
 	return func(_ context.Context, data []byte) error {
 		id, err := unmarshalFunc(data)
 		if err != nil {
-			return fmt.Errorf("can not deserialize data in outbox handler: %w", err)
+			return fmt.Errorf("Can not deserialize data in outbox handler: %w", err)
 		}
 
 		resp, err := client.Post(url, "application/json", strings.NewReader(id))
@@ -47,7 +47,7 @@ func outboxHandler(
 		defer resp.Body.Close()
 
 		if resp.StatusCode < http.StatusOK || http.StatusMultipleChoices <= resp.StatusCode {
-			return fmt.Errorf("request failed with status: %d", resp.StatusCode)
+			return fmt.Errorf("Request failed with status: %d", resp.StatusCode)
 		}
 		return nil
 	}

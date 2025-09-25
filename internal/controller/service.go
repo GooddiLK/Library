@@ -9,6 +9,8 @@ import (
 
 var _ generated.LibraryServer = (*impl)(nil)
 
+const layerCont = "controller"
+
 // impl реализует все методы gRPC API. Валидирует запрос и вызывает бизнес-логику.
 type impl struct {
 	generated.UnimplementedLibraryServer

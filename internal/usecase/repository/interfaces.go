@@ -11,6 +11,7 @@ import (
 )
 
 //go:generate mockgen_uber -source=interfaces.go -destination=mocks/repository_mock.go -package=mocks
+
 type (
 	AuthorRepository interface {
 		RegisterAuthor(ctx context.Context, author *entity.Author) (*entity.Author, error)

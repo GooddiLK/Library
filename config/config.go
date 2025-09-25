@@ -13,6 +13,7 @@ type (
 		GRPC
 		PG
 		Outbox
+		Observability
 	}
 
 	GRPC struct {
@@ -38,6 +39,12 @@ type (
 		InProgressTTLMS time.Duration `env:"OUTBOX_IN_PROGRESS_TTL_MS"`
 		AuthorSendURL   string        `env:"OUTBOX_AUTHOR_SEND_URL"`
 		BookSendURL     string        `env:"OUTBOX_BOOK_SEND_URL"`
+	}
+
+	Observability struct {
+		MetricsPort  string `env:"METRICS_PORT"`
+		JaegerURL    string `env:"JAEGER_URL"`
+		PyroscopeUrl string `env:"PYROSCOPE_URL"`
 	}
 )
 
@@ -92,6 +99,10 @@ func New() (*Config, error) {
 		cfg.Outbox.BookSendURL = os.Getenv("OUTBOX_BOOK_SEND_URL")
 		cfg.Outbox.AuthorSendURL = os.Getenv("OUTBOX_AUTHOR_SEND_URL")
 	}
+
+	cfg.Observability.MetricsPort = os.Getenv("METRICS_PORT")
+	cfg.Observability.JaegerURL = os.Getenv("JAEGER_URL")
+	cfg.Observability.PyroscopeUrl = os.Getenv("PYROSCOPE_URL")
 
 	return cfg, nil
 }
