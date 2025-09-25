@@ -14,7 +14,7 @@ func (l *libraryImpl) AddBook(ctx context.Context, name string, authorIDs []stri
 	var book *entity.Book // Замыкание
 
 	err := l.transactor.WithTx(ctx, func(ctx context.Context) error {
-		l.logger.Info("Transaction started for AddBook")
+		l.logger.Info("Transaction started for AddBook.")
 
 		var txErr error
 		book, txErr = l.booksRepository.AddBook(ctx, &entity.Book{
@@ -22,13 +22,13 @@ func (l *libraryImpl) AddBook(ctx context.Context, name string, authorIDs []stri
 			AuthorIDs: authorIDs,
 		})
 		if txErr != nil {
-			l.logger.Error("Error adding book to repository: ", zap.Error(txErr))
+			l.logger.Error("Error adding book to repository.", zap.Error(txErr))
 			return txErr
 		}
 
 		serialized, txErr := json.Marshal(book)
 		if txErr != nil {
-			l.logger.Error("Error serializing book data")
+			l.logger.Error("Error serializing book data.", zap.Error(txErr))
 			return txErr
 		}
 
@@ -36,7 +36,7 @@ func (l *libraryImpl) AddBook(ctx context.Context, name string, authorIDs []stri
 		txErr = l.outboxRepository.SendMessage(
 			ctx, idempotencyKey, repository.OutboxKindBook, serialized)
 		if txErr != nil {
-			l.logger.Error("Error sending message to outbox: ", zap.Error(txErr))
+			l.logger.Error("Error sending message to outbox.", zap.Error(txErr))
 			return txErr
 		}
 
@@ -44,7 +44,7 @@ func (l *libraryImpl) AddBook(ctx context.Context, name string, authorIDs []stri
 	})
 
 	if err != nil {
-		l.logger.Error("Failed to add book: ", zap.Error(err))
+		l.logger.Error("Failed to add book.", zap.Error(err))
 		return nil, err
 	}
 

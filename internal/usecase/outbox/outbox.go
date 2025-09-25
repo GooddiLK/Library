@@ -79,7 +79,7 @@ func (o *outboxImpl) worker(
 			messages, err := o.outboxRepository.GetMessages(ctx, batchSize, inProgressTTL)
 
 			if err != nil {
-				o.logger.Error("can not fetch messages from outbox: ", zap.Error(err))
+				o.logger.Error("Can not fetch messages from outbox.", zap.Error(err))
 				return err
 			}
 
@@ -93,14 +93,14 @@ func (o *outboxImpl) worker(
 				kindHandler, err = o.globalHandler(message.Kind)
 
 				if err != nil {
-					o.logger.Error("unexpected kind: ", zap.Error(err))
+					o.logger.Error("Unexpected handler kind.", zap.Error(err))
 					continue
 				}
 
 				err = kindHandler(ctx, message.RawData)
 
 				if err != nil {
-					o.logger.Error("kind error: ", zap.Error(err))
+					o.logger.Error("Kind handler error.", zap.Error(err))
 					continue
 				}
 
@@ -109,7 +109,7 @@ func (o *outboxImpl) worker(
 
 			err = o.outboxRepository.MarkAsProcessed(ctx, successKeys)
 			if err != nil {
-				o.logger.Error("mark as processed outbox error: ", zap.Error(err))
+				o.logger.Error("Mark as processed outbox error.", zap.Error(err))
 				return err
 			}
 
@@ -117,7 +117,7 @@ func (o *outboxImpl) worker(
 		})
 
 		if err != nil {
-			o.logger.Error("worker stage error: ", zap.Error(err))
+			o.logger.Error("Worker stage error.", zap.Error(err))
 		}
 	}
 }

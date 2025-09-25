@@ -38,7 +38,7 @@ func (t transactor) WithTx(
 	ctxWithTx, tx, err := injectTx(ctx, t.db)
 	if err != nil {
 		return fmt.Errorf(
-			"can not inject transaction, error: %w", err)
+			"Can not inject transaction, error: %w", err)
 	}
 
 	// В случае возникновения ошибки в процессе выполнения функции, транзакция отменяется.
@@ -46,20 +46,20 @@ func (t transactor) WithTx(
 		if txErr != nil {
 			err = tx.Rollback(ctxWithTx)
 			if err != nil {
-				t.logger.Error("failed to rollback transaction", zap.Error(err))
+				t.logger.Error("Failed to rollback transaction.", zap.Error(err))
 			}
 			return
 		}
 
 		err = tx.Commit(ctxWithTx)
 		if err != nil {
-			t.logger.Error("failed to commit transaction", zap.Error(err))
+			t.logger.Error("Failed to commit transaction.", zap.Error(err))
 		}
 	}()
 
 	err = function(ctxWithTx)
 	if err != nil {
-		return fmt.Errorf("function execution error: %w", err)
+		return fmt.Errorf("Function execution error: %w", err)
 	}
 
 	return nil

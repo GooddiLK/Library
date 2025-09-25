@@ -1,5 +1,7 @@
 # Library
 
+Запуск: docker compose up -d
+
 ![интерфейсы](docs/scheme/Interfaces.png)
 ![реализация](docs/scheme/Implementations.png)
 

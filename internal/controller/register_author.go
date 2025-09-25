@@ -11,18 +11,18 @@ import (
 )
 
 func (i *impl) RegisterAuthor(ctx context.Context, req *library.RegisterAuthorRequest) (*library.RegisterAuthorResponse, error) {
-	i.logger.Info("Received RegisterAuthor request",
-		zap.String("author name: ", req.GetName()))
+	i.logger.Info("Received RegisterAuthor request.",
+		zap.String("author_name", req.GetName()))
 
 	if err := req.ValidateAll(); err != nil {
-		i.logger.Error("Invalid RegisterAuthor request: ", zap.Error(err))
+		i.logger.Error("Invalid RegisterAuthor request.", zap.Error(err))
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	author, err := i.authorUseCase.RegisterAuthor(ctx, req.GetName())
 
 	if err != nil {
-		i.logger.Error("Failed to register author: ", zap.Error(err))
+		i.logger.Error("Failed to register author.", zap.Error(err))
 		return nil, i.ConvertErr(err)
 	}
 

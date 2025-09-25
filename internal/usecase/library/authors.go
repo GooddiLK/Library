@@ -14,20 +14,20 @@ func (l *libraryImpl) RegisterAuthor(ctx context.Context, authorName string) (*e
 	var author *entity.Author
 
 	err := l.transactor.WithTx(ctx, func(ctx context.Context) error {
-		l.logger.Info("Transaction started for RegisterAuthor")
+		l.logger.Info("Transaction started for RegisterAuthor.")
 
 		var txErr error
 		author, txErr = l.authorRepository.RegisterAuthor(ctx, &entity.Author{
 			Name: authorName,
 		})
 		if txErr != nil {
-			l.logger.Error("Error adding author to repository: ", zap.Error(txErr))
+			l.logger.Error("Error adding author to repository.", zap.Error(txErr))
 			return txErr
 		}
 
 		serialized, txErr := json.Marshal(author)
 		if txErr != nil {
-			l.logger.Error("Error serializing author data")
+			l.logger.Error("Error serializing author data.", zap.Error(txErr))
 			return txErr
 		}
 
@@ -35,14 +35,14 @@ func (l *libraryImpl) RegisterAuthor(ctx context.Context, authorName string) (*e
 		txErr = l.outboxRepository.SendMessage(
 			ctx, idempotencyKey, repository.OutboxKindAuthor, serialized)
 		if txErr != nil {
-			l.logger.Error("Error sending message to outbox: ", zap.Error(txErr))
+			l.logger.Error("Error sending message to outbox.", zap.Error(txErr))
 			return txErr
 		}
 
 		return nil
 	})
 	if err != nil {
-		l.logger.Error("Failed to register author: ", zap.Error(err))
+		l.logger.Error("Failed to register author.", zap.Error(err))
 		return nil, err
 	}
 

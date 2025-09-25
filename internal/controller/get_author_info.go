@@ -12,17 +12,17 @@ import (
 
 func (i *impl) GetAuthorInfo(ctx context.Context, req *library.GetAuthorInfoRequest) (*library.GetAuthorInfoResponse, error) {
 	i.logger.Info("Received GetAuthorInfo request",
-		zap.String("authorId: ", req.GetId()))
+		zap.String("author_id", req.GetId()))
 
 	if err := req.ValidateAll(); err != nil {
-		i.logger.Error("Invalid GetAuthorInfo request: ", zap.Error(err))
+		i.logger.Error("Invalid GetAuthorInfo request.", zap.Error(err))
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	author, err := i.authorUseCase.GetAuthorInfo(ctx, req.GetId())
 
 	if err != nil {
-		i.logger.Error("Failed to get author info: ", zap.Error(err))
+		i.logger.Error("Failed to get author info.", zap.Error(err))
 		return nil, i.ConvertErr(err)
 	}
 
