@@ -269,13 +269,13 @@ func (p *postgresRepository) beginTx(
 			if txErr != nil {
 				err := tx.Rollback(ctx)
 				if err != nil {
-					p.logger.Debug("failed to rollback transaction", zap.Error(err))
+					p.logger.Info("failed to rollback transaction", zap.Error(err))
 				}
 				return
 			}
 			err := tx.Commit(ctx)
 			if err != nil {
-				p.logger.Debug("failed to commit transaction", zap.Error(err))
+				p.logger.Info("failed to commit transaction", zap.Error(err))
 			}
 		}
 	}

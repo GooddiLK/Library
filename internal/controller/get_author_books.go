@@ -12,7 +12,7 @@ import (
 )
 
 func (i *impl) GetAuthorBooks(req *library.GetAuthorBooksRequest, server library.Library_GetAuthorBooksServer) error {
-	i.logger.Debug("Received GetAuthorBooks request",
+	i.logger.Info("Received GetAuthorBooks request",
 		zap.String("author Id: ", req.GetAuthorId()))
 
 	if err := req.ValidateAll(); err != nil {

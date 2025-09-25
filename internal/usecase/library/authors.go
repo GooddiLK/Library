@@ -14,7 +14,7 @@ func (l *libraryImpl) RegisterAuthor(ctx context.Context, authorName string) (*e
 	var author *entity.Author
 
 	err := l.transactor.WithTx(ctx, func(ctx context.Context) error {
-		l.logger.Debug("Transaction started for RegisterAuthor")
+		l.logger.Info("Transaction started for RegisterAuthor")
 
 		var txErr error
 		author, txErr = l.authorRepository.RegisterAuthor(ctx, &entity.Author{

@@ -14,7 +14,7 @@ func (l *libraryImpl) AddBook(ctx context.Context, name string, authorIDs []stri
 	var book *entity.Book // Замыкание
 
 	err := l.transactor.WithTx(ctx, func(ctx context.Context) error {
-		l.logger.Debug("Transaction started for AddBook")
+		l.logger.Info("Transaction started for AddBook")
 
 		var txErr error
 		book, txErr = l.booksRepository.AddBook(ctx, &entity.Book{

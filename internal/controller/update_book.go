@@ -11,7 +11,7 @@ import (
 )
 
 func (i *impl) UpdateBook(ctx context.Context, req *library.UpdateBookRequest) (*library.UpdateBookResponse, error) {
-	i.logger.Debug("Received UpdateBook request",
+	i.logger.Info("Received UpdateBook request",
 		zap.String("book name: ", req.GetName()),
 		zap.Strings("author IDs: ", req.GetAuthorIds()),
 		zap.String("book Id: ", req.GetId()))

@@ -12,7 +12,7 @@ import (
 )
 
 func (i *impl) GetBookInfo(ctx context.Context, req *library.GetBookInfoRequest) (*library.GetBookInfoResponse, error) {
-	i.logger.Debug("Received GetBookInfo request",
+	i.logger.Info("Received GetBookInfo request",
 		zap.String("book ID: ", req.GetId()))
 
 	if err := req.ValidateAll(); err != nil {

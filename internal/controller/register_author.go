@@ -11,7 +11,7 @@ import (
 )
 
 func (i *impl) RegisterAuthor(ctx context.Context, req *library.RegisterAuthorRequest) (*library.RegisterAuthorResponse, error) {
-	i.logger.Debug("Received RegisterAuthor request",
+	i.logger.Info("Received RegisterAuthor request",
 		zap.String("author name: ", req.GetName()))
 
 	if err := req.ValidateAll(); err != nil {

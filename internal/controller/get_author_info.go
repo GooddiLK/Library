@@ -11,7 +11,7 @@ import (
 )
 
 func (i *impl) GetAuthorInfo(ctx context.Context, req *library.GetAuthorInfoRequest) (*library.GetAuthorInfoResponse, error) {
-	i.logger.Debug("Received GetAuthorInfo request",
+	i.logger.Info("Received GetAuthorInfo request",
 		zap.String("authorId: ", req.GetId()))
 
 	if err := req.ValidateAll(); err != nil {

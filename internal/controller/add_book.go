@@ -12,7 +12,7 @@ import (
 )
 
 func (i *impl) AddBook(ctx context.Context, req *library.AddBookRequest) (*library.AddBookResponse, error) {
-	i.logger.Debug("Received AddBook request",
+	i.logger.Info("Received AddBook request",
 		zap.String("book name: ", req.GetName()),
 		zap.Strings("author IDs: ", req.GetAuthorId()))
 

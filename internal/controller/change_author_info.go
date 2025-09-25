@@ -11,7 +11,7 @@ import (
 )
 
 func (i *impl) ChangeAuthorInfo(ctx context.Context, req *library.ChangeAuthorInfoRequest) (*library.ChangeAuthorInfoResponse, error) {
-	i.logger.Debug("Received ChangeAuthorInfo request",
+	i.logger.Info("Received ChangeAuthorInfo request",
 		zap.String("new author name: ", req.GetName()),
 		zap.String("author ID: ", req.GetId()))
 
