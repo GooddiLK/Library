@@ -3,16 +3,42 @@ package controller
 import (
 	"context"
 	"github.com/project/library/internal/entity"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
 	otelCodes "go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"time"
 
 	"github.com/project/library/generated/api/library"
 )
 
+var (
+	ChangeAuthorInfoDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "library_change_author_info_duration_ms",
+		Help:    "Duration of ChangeAuthorInfo in ms",
+		Buckets: prometheus.DefBuckets,
+	})
+
+	ChangeAuthorInfoRequests = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "library_change_author_info_requests_total",
+		Help: "Total number of ChangeAuthorInfo requests",
+	})
+)
+
+func init() {
+	prometheus.MustRegister(ChangeAuthorInfoDuration)
+	prometheus.MustRegister(ChangeAuthorInfoRequests)
+}
+
 func (i *impl) ChangeAuthorInfo(ctx context.Context, req *library.ChangeAuthorInfoRequest) (*library.ChangeAuthorInfoResponse, error) {
+	ChangeAuthorInfoRequests.Inc()
+	start := time.Now()
+	defer func() {
+		ChangeAuthorInfoDuration.Observe(float64(time.Since(start).Milliseconds()))
+	}()
+
 	tracer := otel.Tracer("library-service")
 	ctx, span := tracer.Start(ctx, "ChangeAuthorInfo")
 	defer span.End()

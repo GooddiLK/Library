@@ -33,6 +33,9 @@ func Run(logger *zap.Logger, cfg *config.Config) {
 		}
 	}()
 
+	// Запуск сервера прометеуса
+	go runMetricsServer(logger, cfg.Observability.MetricsPort)
+
 	// Подключение к бд
 	dbPool, err := pgxpool.New(ctx, cfg.PG.URL)
 	if err != nil {
@@ -57,6 +60,10 @@ func Run(logger *zap.Logger, cfg *config.Config) {
 	go runRest(ctx, cfg, logger)
 	go runGrpc(cfg, logger, ctrl)
 
+	//go startTableMetricsCollector(ctx, dbPool, logger)
+
 	<-ctx.Done()
 	time.Sleep(timeToSuccessEnd)
 }
+
+//FIXME add pyroscope

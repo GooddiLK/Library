@@ -8,9 +8,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"go.uber.org/zap"
-
 	"github.com/project/library/internal/entity"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
+	"time"
 )
 
 var _ AuthorRepository = (*postgresRepository)(nil)
@@ -19,6 +20,19 @@ var _ BooksRepository = (*postgresRepository)(nil)
 var ErrForeignKeyViolation = &pgconn.PgError{Code: "23503"}
 
 const layerPost = "postgres"
+
+var dbQueryLatency = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "db_query_latency_seconds",
+		Help:    "Latency of DB queries by operation",
+		Buckets: prometheus.DefBuckets,
+	},
+	[]string{"operation"},
+)
+
+func init() {
+	prometheus.MustRegister(dbQueryLatency)
+}
 
 type postgresRepository struct {
 	db     *pgxpool.Pool
@@ -34,7 +48,6 @@ func NewPostgresRepository(db *pgxpool.Pool, logger *zap.Logger) *postgresReposi
 
 func (p *postgresRepository) AddBook(ctx context.Context, book *entity.Book) (resBook *entity.Book, txErr error) {
 	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to add book.", layerPost, "book_id", book.ID)
-
 	tx, rollback, err := p.beginTx(ctx)
 	if err != nil {
 		return nil, err
@@ -42,31 +55,20 @@ func (p *postgresRepository) AddBook(ctx context.Context, book *entity.Book) (re
 
 	defer rollback(txErr)
 
-	const insertQueryBook = `
-		INSERT INTO book (name)
-		VALUES ($1)
-		RETURNING id, created_at, updated_at;
-	`
+	start := time.Now()
+	defer func() {
+		dbQueryLatency.WithLabelValues("add_book").Observe(time.Since(start).Seconds())
+	}()
 
 	id := uuid.UUID{}
-	err = tx.QueryRow(ctx, insertQueryBook, book.Name).Scan(&id, &book.CreatedAt, &book.UpdatedAt)
+	err = tx.QueryRow(ctx, insertBookQuery, book.Name).Scan(&id, &book.CreatedAt, &book.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
 
 	book.ID = id.String()
 
-	rows := make([][]interface{}, len(book.AuthorIDs))
-	for i, authorID := range book.AuthorIDs {
-		rows[i] = []interface{}{authorID, book.ID}
-	}
-
-	_, err = tx.CopyFrom(
-		ctx,
-		pgx.Identifier{"author_book"},
-		[]string{"author_id", "book_id"},
-		pgx.CopyFromRows(rows),
-	)
+	err = p.addRelations(ctx, tx, book)
 
 	if err != nil {
 		return nil, mapPostgresError(err, entity.ErrAuthorNotFound)
@@ -76,29 +78,14 @@ func (p *postgresRepository) AddBook(ctx context.Context, book *entity.Book) (re
 }
 
 func (p *postgresRepository) GetBook(ctx context.Context, bookID string) (*entity.Book, error) {
-	const GetQueryBook = `
-		SELECT 
-  			book.id, 
-  			book.name, 
-  			book.created_at, 
-  			book.updated_at, 
-  			array_agg(author_book.author_id) AS author_ids
-		FROM 
-  		book
-		LEFT JOIN 
-  			author_book ON book.id = author_book.book_id
-		WHERE 
-  			book.id = $1
-		GROUP BY 
-  			book.id;
-	`
-
 	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to get book", layerPost, "book_id", bookID)
 
 	var book entity.Book
 	var authorIDs []uuid.UUID
-	err := p.db.QueryRow(ctx, GetQueryBook, bookID).
-		Scan(&book.ID, &book.Name, &book.CreatedAt, &book.UpdatedAt, &authorIDs)
+	err := measureQueryLatency("get_book", func() error {
+		return p.db.QueryRow(ctx, getBookQuery, bookID).
+			Scan(&book.ID, &book.Name, &book.CreatedAt, &book.UpdatedAt, &authorIDs)
+	})
 
 	if err != nil {
 		return nil, mapPostgresError(err, entity.ErrBookNotFound)
@@ -119,28 +106,17 @@ func (p *postgresRepository) UpdateBook(ctx context.Context, bookID string, newB
 
 	defer rollback(txErr)
 
-	const UpdateQueryBook = `
-		UPDATE book SET name = $1 WHERE id = $2;
-	`
+	start := time.Now()
+	defer func() {
+		dbQueryLatency.WithLabelValues("update_book").Observe(time.Since(start).Seconds())
+	}()
 
-	_, err = tx.Exec(ctx, UpdateQueryBook, newBookName, bookID)
+	_, err = tx.Exec(ctx, updateBookQuery, newBookName, bookID)
 	if err != nil {
 		return err
 	}
 
-	const UpdateAuthorBooks = `
-		WITH inserted AS (
-			INSERT INTO author_book (author_id, book_id)
-			SELECT unnest($1::uuid[]), $2
-			ON CONFLICT (author_id, book_id) DO NOTHING
-		)
-		DELETE FROM author_book
-		WHERE book_id = $2
-  			AND author_id NOT IN (SELECT unnest($1::uuid[]));
-	`
-
-	_, err = tx.Exec(ctx, UpdateAuthorBooks, authorIDs, bookID)
-
+	_, err = tx.Exec(ctx, updateBookAuthorsQuery, authorIDs, bookID)
 	if err != nil {
 		return mapPostgresError(err, entity.ErrAuthorNotFound)
 	}
@@ -149,31 +125,13 @@ func (p *postgresRepository) UpdateBook(ctx context.Context, bookID string, newB
 }
 
 func (p *postgresRepository) GetAuthorBooks(ctx context.Context, authorID string) ([]*entity.Book, error) {
-	const GetBooksWithAuthors = `
-		SELECT
-			book.id,
-			book.name,
-			book.created_at,
-			book.updated_at,
-			array_agg(author_book.author_id)
-		FROM
-			book
-		LEFT JOIN
-			author_book ON book.id = author_book.book_id
-		WHERE
-			book.id IN (
-				SELECT book_id
-				FROM author_book
-				WHERE author_id = $1
-			)
-		GROUP BY
-			book.id;
-	`
-
 	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to get author books.", layerPost, "author_id", authorID)
+	start := time.Now()
+	defer func() {
+		dbQueryLatency.WithLabelValues("get_author_books").Observe(time.Since(start).Seconds())
+	}()
 
-	rows, err := p.db.Query(ctx, GetBooksWithAuthors, authorID)
-
+	rows, err := p.db.Query(ctx, getAuthorBooksQuery, authorID)
 	if err != nil {
 		return nil, err
 	}
@@ -207,14 +165,10 @@ func (p *postgresRepository) RegisterAuthor(ctx context.Context, author *entity.
 
 	defer rollback(txErr)
 
-	const InsertQueryAuthor = `
-		INSERT INTO author (name)
-		VALUES ($1)
-		RETURNING id;
-	`
-
 	id := uuid.UUID{}
-	err = tx.QueryRow(ctx, InsertQueryAuthor, author.Name).Scan(&id)
+	err = measureQueryLatency("register_author", func() error {
+		return tx.QueryRow(ctx, insertAuthorQuery, author.Name).Scan(&id)
+	})
 
 	if err != nil {
 		return nil, err
@@ -226,17 +180,13 @@ func (p *postgresRepository) RegisterAuthor(ctx context.Context, author *entity.
 }
 
 func (p *postgresRepository) GetAuthorInfo(ctx context.Context, authorID string) (*entity.Author, error) {
-	const GetQueryAuthor = `
-		SELECT id, name
-		FROM author
-		WHERE id = $1;
-	`
-
 	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to get author info.", layerPost, "author_id", authorID)
 
 	var author entity.Author
-	err := p.db.QueryRow(ctx, GetQueryAuthor, authorID).
-		Scan(&author.ID, &author.Name)
+	err := measureQueryLatency("get_author_info", func() error {
+		return p.db.QueryRow(ctx, getAuthorQuery, authorID).
+			Scan(&author.ID, &author.Name)
+	})
 
 	if err != nil {
 		return nil, mapPostgresError(err, entity.ErrAuthorNotFound)
@@ -255,17 +205,31 @@ func (p *postgresRepository) ChangeAuthor(ctx context.Context, authorID string, 
 
 	defer rollback(txErr)
 
-	const UpdateQueryAuthor = `
-		UPDATE author SET name = $1 WHERE id = $2;
-	`
-
-	_, err = tx.Exec(ctx, UpdateQueryAuthor, newAuthorName, authorID)
-
+	err = measureQueryLatency("change_author", func() error {
+		_, err = tx.Exec(ctx, updateAuthorQuery, newAuthorName, authorID)
+		return err
+	})
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (p *postgresRepository) addRelations(ctx context.Context, tx pgx.Tx, book *entity.Book) error {
+	rows := make([][]interface{}, len(book.AuthorIDs))
+	for i, authorID := range book.AuthorIDs {
+		rows[i] = []interface{}{authorID, book.ID}
+	}
+
+	_, err := tx.CopyFrom(
+		ctx,
+		pgx.Identifier{"author_book"},
+		[]string{"author_id", "book_id"},
+		pgx.CopyFromRows(rows),
+	)
+
+	return err
 }
 
 func (p *postgresRepository) beginTx(
@@ -319,5 +283,12 @@ func mapPostgresError(err error, notFoundErr error) error {
 	if errors.As(err, &ErrForeignKeyViolation) {
 		return notFoundErr
 	}
+	return err
+}
+
+func measureQueryLatency(operation string, queryFunc func() error) error {
+	start := time.Now()
+	err := queryFunc()
+	dbQueryLatency.WithLabelValues(operation).Observe(time.Since(start).Seconds())
 	return err
 }

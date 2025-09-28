@@ -14,8 +14,9 @@
 
 ## Observability
 Т.к. traces нужны в случае взаимодействия нескольких сервисов, реализовано упрощение.
-* Внутри endpoint создается span без передачи trace_id.
+* Внутри endpoint создается trace.
 
+В opentelemetry пллохо работают метрики
 
 ## Унификация технологий
 * Структура проекта [go-clean-template](https://github.com/evrone/go-clean-template)

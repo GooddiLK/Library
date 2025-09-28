@@ -3,17 +3,43 @@ package controller
 import (
 	"context"
 	"github.com/project/library/internal/entity"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
 	otelCodes "go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"time"
 
 	"github.com/project/library/generated/api/library"
 )
 
+var (
+	AddBookDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "library_add_book_duration_ms",
+		Help:    "Duration of AddBook in ms",
+		Buckets: prometheus.DefBuckets,
+	})
+
+	AddBookRequests = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "library_add_book_requests_total",
+		Help: "Total number of AddBook requests",
+	})
+)
+
+func init() {
+	prometheus.MustRegister(AddBookDuration)
+	prometheus.MustRegister(AddBookRequests)
+}
+
 func (i *impl) AddBook(ctx context.Context, req *library.AddBookRequest) (*library.AddBookResponse, error) {
+	AddBookRequests.Inc()
+	start := time.Now()
+	defer func() {
+		AddBookDuration.Observe(float64(time.Since(start).Milliseconds()))
+	}()
+
 	tracer := otel.Tracer("library-service")
 	ctx, span := tracer.Start(ctx, "AddBook")
 	defer span.End()

@@ -42,8 +42,8 @@ type (
 	}
 
 	Observability struct {
-		MetricsPort  string `env:"METRICS_PORT"`
 		JaegerURL    string `env:"JAEGER_URL"`
+		MetricsPort  string `env:"METRICS_PORT"`
 		PyroscopeUrl string `env:"PYROSCOPE_URL"`
 	}
 )
@@ -100,8 +100,8 @@ func New() (*Config, error) {
 		cfg.Outbox.AuthorSendURL = os.Getenv("OUTBOX_AUTHOR_SEND_URL")
 	}
 
-	cfg.Observability.MetricsPort = os.Getenv("METRICS_PORT")
 	cfg.Observability.JaegerURL = os.Getenv("JAEGER_URL")
+	cfg.Observability.MetricsPort = os.Getenv("METRICS_PORT")
 	cfg.Observability.PyroscopeUrl = os.Getenv("PYROSCOPE_URL")
 
 	return cfg, nil
