@@ -1,5 +1,7 @@
-CURDIR = $(shell pwd)                      # = - отложенное вычисление при каждом использовании
-LOCAL_BIN := $(CURDIR)/bin                 # := - вычисление в момент объявления
+# = - отложенное вычисление при каждом использовании
+# := - вычисление в момент объявления
+CURDIR = $(shell pwd)
+LOCAL_BIN := $(CURDIR)/bin
 EASYP_BIN := $(LOCAL_BIN)/easyp
 GOIMPORTS_BIN := $(LOCAL_BIN)/goimports
 GOLANGCI_BIN := $(LOCAL_BIN)/golangci-lint
@@ -28,7 +30,8 @@ endif
 
 all: generate lint test
 
-.PHONY: lint                            # lint - фантомная цель, а не файл
+# lint - фантомная цель, а не файл
+.PHONY: lint
 lint:
 	echo 'Running linter on files...'
 	$(GOLANGCI_BIN) run \
@@ -58,7 +61,7 @@ bin-deps: .bin-deps
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.5 && \
 	go install github.com/rakyll/gotest@v0.0.6 && \
 	go install go.uber.org/mock/mockgen@latest && \
-    mv $(LOCAL_BIN)/mockgen $(LOCAL_BIN)/mockgen_uber
+	mv $(LOCAL_BIN)/mockgen $(LOCAL_BIN)/mockgen_uber
 	go install github.com/easyp-tech/easyp/cmd/easyp@latest && \
 	go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v2.18.1 && \
 	go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@v2.18.1 && \
@@ -84,12 +87,14 @@ fast-generate: .generate
 	rm -rf ./docs/spec
 	mkdir -p ./docs/spec
 
-	rm -rf ~/.easyp/                  # Очистка .easyp (кеша) в домашней директории пользователя
+	rm -rf ~/.easyp/
 
 	(PATH="$(PATH):$(LOCAL_BIN)" && go generate ./...)
 	(PATH="$(PATH):$(LOCAL_BIN)" && $(EASYP_BIN) mod download && $(EASYP_BIN) generate)
 	go mod tidy
 	$(GOIMPORTS_BIN) -w .
+# Очистка .easyp (кеша) в домашней директории пользователя
+#
 # В () команда выполняется в дочерней оболочке
 # PATH="$(PATH):$(LOCAL_BIN) временно изменяется PATH
 # go generate ./... выполняет все файлы с директивами go:gen: //go:generate mockgen -source=interface.go -destination=mock.go
