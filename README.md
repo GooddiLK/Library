@@ -2,6 +2,8 @@
 
 Запуск: docker compose up -d
 
+Можно запустить локально, но Makefile полностью определен лишь для Linux и MacOS.
+
 ![интерфейсы](docs/scheme/Interfaces.png)
 ![реализация](docs/scheme/Implementations.png)
 
@@ -16,7 +18,12 @@
 Т.к. traces нужны в случае взаимодействия нескольких сервисов, реализовано упрощение.
 * Внутри endpoint создается trace.
 
-В opentelemetry пллохо работают метрики
+В opentelemetry плохо работают метрики
+
+## Makefile
+В результате работы образуется временные файлы:
+* Кеш easyP ~100мб
+* bin ~200мб
 
 ## Унификация технологий
 * Структура проекта [go-clean-template](https://github.com/evrone/go-clean-template)

@@ -1,35 +1,34 @@
-CURDIR=$(shell pwd)
-LOCAL_BIN := $(CURDIR)/bin
+CURDIR = $(shell pwd)                      # = - отложенное вычисление при каждом использовании
+LOCAL_BIN := $(CURDIR)/bin                 # := - вычисление в момент объявления
 EASYP_BIN := $(LOCAL_BIN)/easyp
 GOIMPORTS_BIN := $(LOCAL_BIN)/goimports
 GOLANGCI_BIN := $(LOCAL_BIN)/golangci-lint
-GO_TEST=$(LOCAL_BIN)/gotest
+GO_TEST := $(LOCAL_BIN)/gotest
+
 GO_TEST_ARGS=-race -v -tags=integration_test ./...
-PROTOC_DOWNLOAD_LINK="https://github.com/protocolbuffers/protobuf/releases"
-PROTOC_VERSION=29.2
+
 UNAME_S := $(shell uname -s)
 UNAME_P := $(shell uname -p)
 
-ARCH :=
-
+# Установка protobuf
 ifeq ($(UNAME_S),Linux)
     INSTALL_CMD = apt update && apt install -y protobuf-compiler
-    ARCH = linux-x86_64
+    ARCH := linux-x86_64
 endif
 
 ifeq ($(UNAME_S),Darwin)
     ifeq ($(UNAME_P),arm)
         INSTALL_CMD = brew install protobuf
-        ARCH = osx-universal_binary
+        ARCH := osx-universal_binary
     else
         INSTALL_CMD = sudo apt install -y protobuf-compiler
-        ARCH = linux-x86_64
+        ARCH := linux-x86_64
     endif
 endif
 
 all: generate lint test
 
-.PHONY: lint
+.PHONY: lint                            # lint - фантомная цель, а не файл
 lint:
 	echo 'Running linter on files...'
 	$(GOLANGCI_BIN) run \
@@ -51,8 +50,10 @@ build:
 
 bin-deps: .bin-deps
 
+# Устанавливаем переменную окружения GOBIN для .bin-deps
 .bin-deps: export GOBIN := $(LOCAL_BIN)
 
+# Из-за коллизии имен go.uber.org/mock/mockgen переименовывается
 .bin-deps: .create-bin .install-protoc
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.5 && \
 	go install github.com/rakyll/gotest@v0.0.6 && \
@@ -70,7 +71,8 @@ bin-deps: .bin-deps
 	rm -rf ./bin
 	mkdir -p ./bin
 
-generate: bin-deps .generate build
+full-generate: bin-deps .generate build
+generate: bin-deps .generate
 fast-generate: .generate
 
 .generate:
@@ -82,10 +84,14 @@ fast-generate: .generate
 	rm -rf ./docs/spec
 	mkdir -p ./docs/spec
 
-	rm -rf ~/.easyp/
-
+	rm -rf ~/.easyp/                  # Очистка .easyp (кеша) в домашней директории пользователя
 
 	(PATH="$(PATH):$(LOCAL_BIN)" && go generate ./...)
 	(PATH="$(PATH):$(LOCAL_BIN)" && $(EASYP_BIN) mod download && $(EASYP_BIN) generate)
 	go mod tidy
 	$(GOIMPORTS_BIN) -w .
+# В () команда выполняется в дочерней оболочке
+# PATH="$(PATH):$(LOCAL_BIN) временно изменяется PATH
+# go generate ./... выполняет все файлы с директивами go:gen: //go:generate mockgen -source=interface.go -destination=mock.go
+#
+# $(EASYP_BIN) mod download установка easyP зависимостей
