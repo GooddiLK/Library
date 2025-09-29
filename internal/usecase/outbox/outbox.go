@@ -2,6 +2,7 @@ package outbox
 
 import (
 	"context"
+	"github.com/prometheus/client_golang/prometheus"
 	"sync"
 	"time"
 
@@ -10,6 +11,30 @@ import (
 	"github.com/project/library/config"
 	"github.com/project/library/internal/usecase/repository"
 )
+
+var (
+	outboxTasksFailedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "outbox_tasks_failed_total",
+			Help: "Total number of failed outbox message processing attempts",
+		},
+		[]string{"kind"},
+	)
+
+	outboxTasksDurationTotal = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "outbox_tasks_duration_ms",
+			Help:    "Duration of process outbox tasks in ms",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"kind"},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(outboxTasksDurationTotal)
+	prometheus.MustRegister(outboxTasksFailedTotal)
+}
 
 type GlobalHandler = func(kind repository.OutboxKind) (KindHandler, error)
 type KindHandler = func(ctx context.Context, data []byte) error
@@ -79,13 +104,15 @@ func (o *outboxImpl) worker(
 			messages, err := o.outboxRepository.GetMessages(ctx, batchSize, inProgressTTL)
 
 			if err != nil {
-				o.logger.Error("can not fetch messages from outbox: ", zap.Error(err))
+				o.logger.Error("Can not fetch messages from outbox.", zap.Error(err))
 				return err
 			}
 
 			successKeys := make([]string, 0, len(messages))
 
 			for i := 0; i < len(messages); i++ {
+				start := time.Now()
+
 				message := messages[i]
 				key := message.IdempotencyKey
 
@@ -93,23 +120,26 @@ func (o *outboxImpl) worker(
 				kindHandler, err = o.globalHandler(message.Kind)
 
 				if err != nil {
-					o.logger.Error("unexpected kind: ", zap.Error(err))
+					outboxTasksFailedTotal.WithLabelValues(message.Kind.String()).Inc()
+					o.logger.Error("Unexpected handler kind.", zap.Error(err))
 					continue
 				}
 
 				err = kindHandler(ctx, message.RawData)
 
 				if err != nil {
-					o.logger.Error("kind error: ", zap.Error(err))
+					outboxTasksFailedTotal.WithLabelValues(message.Kind.String()).Inc()
+					o.logger.Error("Kind handler error.", zap.Error(err))
 					continue
 				}
 
 				successKeys = append(successKeys, key)
+				outboxTasksDurationTotal.WithLabelValues(message.Kind.String()).Observe(time.Since(start).Seconds())
 			}
 
 			err = o.outboxRepository.MarkAsProcessed(ctx, successKeys)
 			if err != nil {
-				o.logger.Error("mark as processed outbox error: ", zap.Error(err))
+				o.logger.Error("Mark as processed outbox error.", zap.Error(err))
 				return err
 			}
 
@@ -117,7 +147,7 @@ func (o *outboxImpl) worker(
 		})
 
 		if err != nil {
-			o.logger.Error("worker stage error: ", zap.Error(err))
+			o.logger.Error("Worker stage error.", zap.Error(err))
 		}
 	}
 }

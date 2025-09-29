@@ -16,7 +16,7 @@ func runGrpc(cfg *config.Config, logger *zap.Logger, libraryService generated.Li
 	lis, err := net.Listen("tcp", port)
 
 	if err != nil {
-		logger.Error("can not open tcp socket: ", zap.Error(err))
+		logger.Error("Can not open tcp socket.", zap.Error(err))
 		os.Exit(-1)
 	}
 
@@ -25,10 +25,10 @@ func runGrpc(cfg *config.Config, logger *zap.Logger, libraryService generated.Li
 
 	generated.RegisterLibraryServer(s, libraryService)
 
-	logger.Info("grpc server listening at port: ", zap.String("port", port))
+	logger.Info("Grpc server listening.", zap.String("port", port))
 
 	if err = s.Serve(lis); err != nil {
-		logger.Error("grpc server listen error: ", zap.Error(err))
+		logger.Error("Grpc server listen error.", zap.Error(err))
 	}
 
 	// Можно было бы добавить остановку

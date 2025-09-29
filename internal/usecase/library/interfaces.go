@@ -13,6 +13,8 @@ import (
 var _ AuthorUseCase = (*libraryImpl)(nil)
 var _ BooksUseCase = (*libraryImpl)(nil)
 
+const layerLib = "usecase_library"
+
 type (
 	AuthorUseCase interface {
 		RegisterAuthor(ctx context.Context, authorName string) (*entity.Author, error)

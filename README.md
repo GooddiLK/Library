@@ -1,5 +1,7 @@
 # Library
 
+Запуск: docker compose up -d
+
 ![интерфейсы](docs/scheme/Interfaces.png)
 ![реализация](docs/scheme/Implementations.png)
 
@@ -9,6 +11,12 @@
 ## Разработка
 
 ![разработка](docs/scheme/developing.png)
+
+## Observability
+Т.к. traces нужны в случае взаимодействия нескольких сервисов, реализовано упрощение.
+* Внутри endpoint создается trace.
+
+В opentelemetry пллохо работают метрики
 
 ## Унификация технологий
 * Структура проекта [go-clean-template](https://github.com/evrone/go-clean-template)
@@ -21,4 +29,5 @@
 * Для прохождения тестов необходимо записать переменные окружения для инициализации конфига, см: [README](./cmd/library/README.md)
 
 ## Авторские заметки
+* Для трейсов используется jaeger, устаревший экспортер -> otlp
 * Для понимания Makefile и easyp можно заглянуть в Go-CT-Learning репозиторий (private).

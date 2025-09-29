@@ -2,28 +2,62 @@ package controller
 
 import (
 	"context"
-
+	"github.com/project/library/internal/entity"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel"
+	otelCodes "go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"time"
 
 	"github.com/project/library/generated/api/library"
 )
 
+var (
+	ChangeAuthorInfoDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "library_change_author_info_duration_ms",
+		Help:    "Duration of ChangeAuthorInfo in ms",
+		Buckets: prometheus.DefBuckets,
+	})
+
+	ChangeAuthorInfoRequests = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "library_change_author_info_requests_total",
+		Help: "Total number of ChangeAuthorInfo requests",
+	})
+)
+
+func init() {
+	prometheus.MustRegister(ChangeAuthorInfoDuration)
+	prometheus.MustRegister(ChangeAuthorInfoRequests)
+}
+
 func (i *impl) ChangeAuthorInfo(ctx context.Context, req *library.ChangeAuthorInfoRequest) (*library.ChangeAuthorInfoResponse, error) {
-	i.logger.Debug("Received ChangeAuthorInfo request",
-		zap.String("new author name: ", req.GetName()),
-		zap.String("author ID: ", req.GetId()))
+	ChangeAuthorInfoRequests.Inc()
+	start := time.Now()
+	defer func() {
+		ChangeAuthorInfoDuration.Observe(float64(time.Since(start).Milliseconds()))
+	}()
+
+	tracer := otel.Tracer("library-service")
+	ctx, span := tracer.Start(ctx, "ChangeAuthorInfo")
+	defer span.End()
+
+	entity.SendLoggerInfoWithCondition(i.logger, ctx, "Received ChangeAuthorInfo request.",
+		layerCont, "author_id", req.GetId())
 
 	if err := req.ValidateAll(); err != nil {
-		i.logger.Error("Invalid ChangeAuthorInfo request: ", zap.Error(err))
+		span.RecordError(err)
+		span.SetStatus(otelCodes.Code(codes.InvalidArgument), "Invalid ChangeAuthorInfo request.")
+		i.logger.Error("Invalid ChangeAuthorInfo request.", zap.Error(err))
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	err := i.authorUseCase.ChangeAuthor(ctx, req.GetId(), req.GetName())
 
 	if err != nil {
-		i.logger.Error("Failed to change author info: ", zap.Error(err))
+		span.RecordError(err)
+		i.logger.Error("Failed to change author info.", zap.Error(err))
 		return nil, i.ConvertErr(err)
 	}
 

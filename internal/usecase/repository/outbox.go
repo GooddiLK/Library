@@ -29,17 +29,11 @@ func (o *outboxRepository) SendMessage(
 	kind OutboxKind,
 	message []byte,
 ) error {
-	const query = `
-		INSERT INTO outbox (idempotency_key, data, status, kind)
-		VALUES($1, $2, 'CREATED', $3)
-		ON CONFLICT (idempotency_key) DO NOTHING -- Если уже существует, скип
-	`
-
 	var err error
 	if tx, txErr := extractTx(ctx); txErr == nil {
-		_, err = tx.Exec(ctx, query, idempotencyKey, message, kind)
+		_, err = tx.Exec(ctx, sendMessageQuery, idempotencyKey, message, kind)
 	} else {
-		_, err = o.db.Exec(ctx, query, idempotencyKey, message, kind)
+		_, err = o.db.Exec(ctx, sendMessageQuery, idempotencyKey, message, kind)
 	}
 
 	if err != nil {
@@ -53,32 +47,15 @@ func (o *outboxRepository) GetMessages(
 	ctx context.Context, batchSize int,
 	inProgressTTLMs time.Duration,
 ) ([]OutboxData, error) {
-	const query = `
-		UPDATE outbox
-		SET status = 'IN_PROGRESS'
-		WHERE idempotency_key IN (
-    		SELECT idempotency_key
-    		FROM outbox
-    		WHERE
-        		(status = 'CREATED'
-            		OR (status = 'IN_PROGRESS' AND updated_at < now() - $1::interval)) -- Явный каст времени к интервалу
-    		ORDER BY created_at
-    		LIMIT $2
-    		FOR UPDATE SKIP LOCKED -- FIXME 
-			)
-			RETURNING idempotency_key, data, kind;
-	`
-
 	interval := fmt.Sprintf("%d ms", inProgressTTLMs.Milliseconds()) // FIXME типизированный параметр
-	var (
-		err  error
-		rows pgx.Rows
-	)
+
+	var err error
+	var rows pgx.Rows
 	tx, txErr := extractTx(ctx)
 	if txErr == nil {
-		rows, err = tx.Query(ctx, query, interval, batchSize)
+		rows, err = tx.Query(ctx, getMessagesQuery, interval, batchSize)
 	} else {
-		rows, err = o.db.Query(ctx, query, interval, batchSize)
+		rows, err = o.db.Query(ctx, getMessagesQuery, interval, batchSize)
 	}
 
 	if err != nil {
@@ -116,17 +93,11 @@ func (o *outboxRepository) MarkAsProcessed(
 		return nil
 	}
 
-	const query = `
-		UPDATE outbox
-		SET status = 'SUCCESS'
-		WHERE idempotency_key = ANY($1);
-	`
-
 	var err error
 	if tx, txErr := extractTx(ctx); txErr == nil {
-		_, err = tx.Exec(ctx, query, idempotencyKeys)
+		_, err = tx.Exec(ctx, markAsProcessedQuery, idempotencyKeys)
 	} else {
-		_, err = o.db.Exec(ctx, query, idempotencyKeys)
+		_, err = o.db.Exec(ctx, markAsProcessedQuery, idempotencyKeys)
 	}
 
 	if err != nil {

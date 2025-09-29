@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"github.com/project/library/internal/entity"
 
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
@@ -30,15 +31,19 @@ type txInjector struct{}
 
 var ErrTxNotFound = status.Error(codes.NotFound, "tx not found in ctx")
 
+const transLayer = "transactor"
+
 // WithTx реализует атомарное исполнение передаваемой функции
 func (t transactor) WithTx(
 	ctx context.Context,
 	function func(ctx context.Context) error,
 ) (txErr error) {
+	entity.SendLoggerInfo(t.logger, ctx, "Start creating transaction.", transLayer)
+
 	ctxWithTx, tx, err := injectTx(ctx, t.db)
 	if err != nil {
 		return fmt.Errorf(
-			"can not inject transaction, error: %w", err)
+			"Can not inject transaction, error: %w", err)
 	}
 
 	// В случае возникновения ошибки в процессе выполнения функции, транзакция отменяется.
@@ -46,20 +51,20 @@ func (t transactor) WithTx(
 		if txErr != nil {
 			err = tx.Rollback(ctxWithTx)
 			if err != nil {
-				t.logger.Error("failed to rollback transaction", zap.Error(err))
+				entity.SendLoggerInfo(t.logger, ctx, "Failed to rollback transaction.", transLayer)
 			}
 			return
 		}
 
 		err = tx.Commit(ctxWithTx)
 		if err != nil {
-			t.logger.Error("failed to commit transaction", zap.Error(err))
+			entity.SendLoggerInfo(t.logger, ctx, "Failed to commit transaction.", transLayer)
 		}
 	}()
 
 	err = function(ctxWithTx)
 	if err != nil {
-		return fmt.Errorf("function execution error: %w", err)
+		return fmt.Errorf("Function execution error: %w", err)
 	}
 
 	return nil

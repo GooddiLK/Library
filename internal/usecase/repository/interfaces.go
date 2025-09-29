@@ -11,6 +11,7 @@ import (
 )
 
 //go:generate mockgen_uber -source=interfaces.go -destination=mocks/repository_mock.go -package=mocks
+
 type (
 	AuthorRepository interface {
 		RegisterAuthor(ctx context.Context, author *entity.Author) (*entity.Author, error)
@@ -65,7 +66,7 @@ func (o OutboxKind) String() string {
 	case OutboxKindBook:
 		return "book"
 	case OutboxKindAuthor:
-		return "auhtor"
+		return "author"
 	default:
 		return "undefined"
 	}
