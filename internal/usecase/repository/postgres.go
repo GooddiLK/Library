@@ -47,7 +47,7 @@ func NewPostgresRepository(db *pgxpool.Pool, logger *zap.Logger) *postgresReposi
 }
 
 func (p *postgresRepository) AddBook(ctx context.Context, book *entity.Book) (resBook *entity.Book, txErr error) {
-	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to add book.", layerPost, "book_id", book.ID)
+	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to add book.", layerPost, "book_name", book.Name)
 	tx, rollback, err := p.beginTx(ctx)
 	if err != nil {
 		return nil, err
@@ -156,7 +156,7 @@ func (p *postgresRepository) GetAuthorBooks(ctx context.Context, authorID string
 }
 
 func (p *postgresRepository) RegisterAuthor(ctx context.Context, author *entity.Author) (retAuthor *entity.Author, txErr error) {
-	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to register author.", layerPost, "author_id", author.ID)
+	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to register author.", layerPost, "author_name", author.Name)
 
 	tx, rollback, err := p.beginTx(ctx)
 	if err != nil {

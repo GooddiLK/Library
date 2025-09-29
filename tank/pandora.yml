@@ -1,0 +1,20 @@
+pools:
+  - id: HTTP pool                  # Название пула (можно несколько пулов)
+    gun:
+      type: http                   # Тип пушки
+      target: 127.0.0.1:8080       # Цель
+    ammo:
+      type: raw                    # формат патронов
+      chosencases: [ "POST_book" ] #
+      file: ./ammo.txt             # файл с патронами
+    result:
+      type: phout                  # формат отчета (phantom)
+      destination: ./phout.log     # файл отчета
+    rps:                           # расписание стрельбы
+      type: line                   # линейный рост
+      from: 5                      # от 5 RPS
+      to: 7                        # до 7 RPS
+      duration: 60s                # за T
+    startup:                       # расписание старта инстансов
+      type: once                   # запустить times инстансов за раз
+      times: 7

@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"github.com/project/library/internal/entity"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
 	otelCodes "go.opentelemetry.io/otel/codes"
@@ -18,7 +17,7 @@ import (
 var (
 	AddBookDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "library_add_book_duration_ms",
-		Help:    "Duration of AddBook in ms",
+		Help:    "Duration of AddBook in ms", // Комментарий для http://localhost:9000/metrics
 		Buckets: prometheus.DefBuckets,
 	})
 
@@ -44,8 +43,12 @@ func (i *impl) AddBook(ctx context.Context, req *library.AddBookRequest) (*libra
 	ctx, span := tracer.Start(ctx, "AddBook")
 	defer span.End()
 
-	entity.SendLoggerInfoWithCondition(i.logger, ctx, "Received AddBook request.",
-		layerCont, "book_name", req.GetName())
+	i.logger.Info("Received AddBook request.",
+		zap.String("trace_id", span.SpanContext().TraceID().String()),
+		zap.String("layer", layerCont),
+		zap.String("book_name", req.GetName()),
+		zap.Strings("author_ids", req.GetAuthorId()),
+	)
 
 	if err := req.ValidateAll(); err != nil {
 		span.RecordError(err)
