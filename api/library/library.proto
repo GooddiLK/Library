@@ -58,7 +58,7 @@ service Library {
 message Book {
   string id = 1[(validate.rules).string.uuid = true];
   string name = 2[(validate.rules).string = {min_len: 1, max_len: 512}];
-  repeated string author_id = 3 [(validate.rules).repeated = {items:
+  repeated string author_ids = 3 [(validate.rules).repeated = {items:
   {string: {uuid: true}}}];
   google.protobuf.Timestamp created_at = 4;
   google.protobuf.Timestamp updated_at = 5;
@@ -66,7 +66,7 @@ message Book {
 
 message AddBookRequest {
   string name = 1[(validate.rules).string = {min_len: 1, max_len: 512}];
-  repeated string author_id = 2 [(validate.rules).repeated = {items:
+  repeated string author_ids = 2 [(validate.rules).repeated = {items:
   {string: {uuid: true}}}];
 }
 

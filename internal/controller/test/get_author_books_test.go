@@ -55,13 +55,13 @@ func Test_GetAuthorBooks(t *testing.T) {
 			},
 			wantUsecaseReturn: []*entity.Book{
 				{
-					ID:        uuid.NewString(),
+					Id:        uuid.NewString(),
 					Name:      "Aboba1",
-					AuthorIDs: []string{"7a948d89-108c-4133-be30-788bd453c0cd", "f47ac10b-58cc-4372-a567-0e02b2c3d479"},
+					AuthorIds: []string{"7a948d89-108c-4133-be30-788bd453c0cd", "f47ac10b-58cc-4372-a567-0e02b2c3d479"},
 				}, {
-					ID:        uuid.NewString(),
+					Id:        uuid.NewString(),
 					Name:      "Aboba2",
-					AuthorIDs: []string{"7a948d89-108c-4133-be30-788bd453c0cd"},
+					AuthorIds: []string{"7a948d89-108c-4133-be30-788bd453c0cd"},
 				},
 			},
 			wantErrCode: codes.OK,
@@ -119,10 +119,10 @@ func Test_GetAuthorBooks(t *testing.T) {
 
 			if test.mocksUsed && test.server.books != nil {
 				for idx, book := range test.server.books {
-					assert.Equal(t, test.wantUsecaseReturn[idx].ID, book.GetId())
+					assert.Equal(t, test.wantUsecaseReturn[idx].Id, book.GetId())
 					assert.Equal(t, test.wantUsecaseReturn[idx].Name, book.GetName())
 					// Потенциально порядок не важен (но как он может измениться???)
-					assert.ElementsMatch(t, test.wantUsecaseReturn[idx].AuthorIDs, book.GetAuthorId())
+					assert.ElementsMatch(t, test.wantUsecaseReturn[idx].AuthorIds, book.GetAuthorIds())
 				}
 			}
 		})

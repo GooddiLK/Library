@@ -38,7 +38,7 @@ func (i *impl) GetBookInfo(ctx context.Context, req *library.GetBookInfoRequest)
 		GetBookInfoDuration.Observe(float64(time.Since(start).Milliseconds()))
 	}()
 
-	ctx, span := createTracerSpan(ctx, "GetBookInfo")
+	ctx, span := CreateTracerSpan(ctx, "GetBookInfo")
 	defer span.End()
 
 	entity.SendLoggerInfoWithCondition(i.logger, ctx, "Received GetBookInfo request.",
@@ -58,9 +58,9 @@ func (i *impl) GetBookInfo(ctx context.Context, req *library.GetBookInfoRequest)
 
 	return &library.GetBookInfoResponse{
 		Book: &library.Book{
-			Id:        book.ID,
+			Id:        book.Id,
 			Name:      book.Name,
-			AuthorId:  book.AuthorIDs,
+			AuthorIds: book.AuthorIds,
 			CreatedAt: timestamppb.New(book.CreatedAt),
 			UpdatedAt: timestamppb.New(book.UpdatedAt),
 		},

@@ -37,7 +37,7 @@ func (i *impl) ChangeAuthorInfo(ctx context.Context, req *library.ChangeAuthorIn
 		ChangeAuthorInfoDuration.Observe(float64(time.Since(start).Milliseconds()))
 	}()
 
-	ctx, span := createTracerSpan(ctx, "ChangeAuthorInfo")
+	ctx, span := CreateTracerSpan(ctx, "ChangeAuthorInfo")
 	defer span.End()
 
 	entity.SendLoggerInfoWithCondition(i.logger, ctx, "Received ChangeAuthorInfo request.",

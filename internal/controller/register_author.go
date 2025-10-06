@@ -37,7 +37,7 @@ func (i *impl) RegisterAuthor(ctx context.Context, req *library.RegisterAuthorRe
 		RegisterAuthorDuration.Observe(float64(time.Since(start).Milliseconds()))
 	}()
 
-	ctx, span := createTracerSpan(ctx, "RegisterAuthor")
+	ctx, span := CreateTracerSpan(ctx, "RegisterAuthor")
 	defer span.End()
 
 	entity.SendLoggerInfoWithCondition(i.logger, ctx, "Received RegisterAuthor request.",
@@ -56,6 +56,6 @@ func (i *impl) RegisterAuthor(ctx context.Context, req *library.RegisterAuthorRe
 	}
 
 	return &library.RegisterAuthorResponse{
-		Id: author.ID,
+		Id: author.Id,
 	}, nil
 }

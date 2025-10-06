@@ -37,18 +37,18 @@ func (i *impl) AddBook(ctx context.Context, req *library.AddBookRequest) (*libra
 		AddBookDuration.Observe(float64(time.Since(start).Milliseconds()))
 	}()
 
-	ctx, span := createTracerSpan(ctx, "AddBook")
+	ctx, span := CreateTracerSpan(ctx, "AddBook")
 	defer span.End()
 
 	SendAddBookLoggerInfo(i.logger, ctx, "Received AddBook request.",
-		layerCont, req.GetName(), req.GetAuthorId())
+		layerCont, req.GetName(), req.GetAuthorIds())
 
 	if err := req.ValidateAll(); err != nil {
 		SendSpanStatusLoggerError(i.logger, ctx, "Invalid AddBook request.", err, codes.InvalidArgument)
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	book, err := i.booksUseCase.AddBook(ctx, req.GetName(), req.GetAuthorId())
+	book, err := i.booksUseCase.AddBook(ctx, req.GetName(), req.GetAuthorIds())
 
 	if err != nil {
 		SendSpanStatusLoggerError(i.logger, ctx, "Failed to add book.", err, codes.Internal)
@@ -57,9 +57,9 @@ func (i *impl) AddBook(ctx context.Context, req *library.AddBookRequest) (*libra
 
 	return &library.AddBookResponse{
 		Book: &library.Book{
-			Id:        book.ID,
+			Id:        book.Id,
 			Name:      book.Name,
-			AuthorId:  book.AuthorIDs,
+			AuthorIds: book.AuthorIds,
 			CreatedAt: timestamppb.New(book.CreatedAt),
 			UpdatedAt: timestamppb.New(book.UpdatedAt),
 		},

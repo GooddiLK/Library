@@ -39,7 +39,7 @@ func (i *impl) GetAuthorBooks(req *library.GetAuthorBooksRequest, server library
 
 	ctx := server.Context()
 
-	ctx, span := createTracerSpan(ctx, "GetAuthorBooks")
+	ctx, span := CreateTracerSpan(ctx, "GetAuthorBooks")
 	defer span.End()
 
 	entity.SendLoggerInfoWithCondition(i.logger, ctx, "Received GetAuthorBooks request.",
@@ -59,9 +59,9 @@ func (i *impl) GetAuthorBooks(req *library.GetAuthorBooksRequest, server library
 
 	for _, book := range books {
 		err := server.Send(&library.Book{
-			Id:        book.ID,
+			Id:        book.Id,
 			Name:      book.Name,
-			AuthorId:  book.AuthorIDs,
+			AuthorIds: book.AuthorIds,
 			CreatedAt: timestamppb.New(book.CreatedAt),
 			UpdatedAt: timestamppb.New(book.UpdatedAt),
 		})

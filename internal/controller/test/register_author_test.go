@@ -44,7 +44,7 @@ func Test_RegisterAuthor(t *testing.T) {
 				},
 			},
 			want: &entity.Author{
-				ID:   "7a948d89-108c-4133-be30-788bd453c0cd",
+				Id:   "7a948d89-108c-4133-be30-788bd453c0cd",
 				Name: "NameAbobs",
 			},
 			wantErrCode: codes.OK,
@@ -98,7 +98,7 @@ func Test_RegisterAuthor(t *testing.T) {
 
 			testutils.CheckError(t, err, test.wantErrCode)
 			if err == nil {
-				assert.Equal(t, test.want.ID, got.GetId())
+				assert.Equal(t, test.want.Id, got.GetId())
 			}
 		})
 	}

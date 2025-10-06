@@ -29,7 +29,7 @@ func (l *libraryImpl) RegisterAuthor(ctx context.Context, authorName string) (*e
 			return txErr
 		}
 
-		span.SetAttributes(attribute.String("author_id", author.ID))
+		span.SetAttributes(attribute.String("author_id", author.Id))
 
 		// Marshal & Unmarshal медленно работают
 		serialized, txErr := json.Marshal(author)
@@ -38,7 +38,7 @@ func (l *libraryImpl) RegisterAuthor(ctx context.Context, authorName string) (*e
 			return txErr
 		}
 
-		idempotencyKey := repository.OutboxKindAuthor.String() + "_" + author.ID
+		idempotencyKey := repository.OutboxKindAuthor.String() + "_" + author.Id
 		txErr = l.outboxRepository.SendMessage(ctx, idempotencyKey, repository.OutboxKindAuthor, serialized)
 		if txErr != nil {
 			entity.SendLoggerSpanError(l.logger, ctx, "Error sending message to outbox.", layerLib, txErr)
@@ -54,19 +54,19 @@ func (l *libraryImpl) RegisterAuthor(ctx context.Context, authorName string) (*e
 		return nil, err
 	}
 
-	entity.SendLoggerInfoWithCondition(l.logger, ctx, "Author registered.", layerLib, "author_id", author.ID)
+	entity.SendLoggerInfoWithCondition(l.logger, ctx, "Author registered.", layerLib, "author_id", author.Id)
 
 	return author, nil
 }
 
-func (l *libraryImpl) GetAuthorInfo(ctx context.Context, authorID string) (*entity.Author, error) {
+func (l *libraryImpl) GetAuthorInfo(ctx context.Context, authorId string) (*entity.Author, error) {
 	entity.SendLoggerInfo(l.logger, ctx, "Start to send author info.", layerLib)
 
-	return l.authorRepository.GetAuthorInfo(ctx, authorID)
+	return l.authorRepository.GetAuthorInfo(ctx, authorId)
 }
 
-func (l *libraryImpl) ChangeAuthor(ctx context.Context, authorID string, newAuthorName string) error {
+func (l *libraryImpl) ChangeAuthor(ctx context.Context, authorId string, newAuthorName string) error {
 	entity.SendLoggerInfo(l.logger, ctx, "Start to change author.", layerLib)
 
-	return l.authorRepository.ChangeAuthor(ctx, authorID, newAuthorName)
+	return l.authorRepository.ChangeAuthor(ctx, authorId, newAuthorName)
 }

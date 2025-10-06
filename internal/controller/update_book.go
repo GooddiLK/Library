@@ -37,7 +37,7 @@ func (i *impl) UpdateBook(ctx context.Context, req *library.UpdateBookRequest) (
 		UpdateBookDuration.Observe(float64(time.Since(start).Milliseconds()))
 	}()
 
-	ctx, span := createTracerSpan(ctx, "UpdateBook")
+	ctx, span := CreateTracerSpan(ctx, "UpdateBook")
 	defer span.End()
 
 	entity.SendLoggerInfoWithCondition(i.logger, ctx, "Received UpdateBook request.",

@@ -43,9 +43,9 @@ func Test_GetBookInfo(t *testing.T) {
 				},
 			},
 			want: &entity.Book{
-				ID:        "7a948d89-108c-4133-be30-788bd453c0cd",
+				Id:        "7a948d89-108c-4133-be30-788bd453c0cd",
 				Name:      "Test Book",
-				AuthorIDs: []string{uuid.NewString(), uuid.NewString()},
+				AuthorIds: []string{uuid.NewString(), uuid.NewString()},
 			},
 			wantErrCode: codes.OK,
 			mocksUsed:   true,
@@ -110,9 +110,9 @@ func Test_GetBookInfo(t *testing.T) {
 
 			testutils.CheckError(t, err, test.wantErrCode)
 			if err == nil {
-				assert.Equal(t, test.want.ID, got.GetBook().GetId())
+				assert.Equal(t, test.want.Id, got.GetBook().GetId())
 				assert.Equal(t, test.want.Name, got.GetBook().GetName())
-				assert.Equal(t, test.want.AuthorIDs, got.GetBook().GetAuthorId())
+				assert.Equal(t, test.want.AuthorIds, got.GetBook().GetAuthorIds())
 			}
 		})
 	}

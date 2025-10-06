@@ -8,9 +8,9 @@ import (
 )
 
 type Book struct {
-	ID        string
+	Id        string
 	Name      string
-	AuthorIDs []string
+	AuthorIds []string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

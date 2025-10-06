@@ -37,7 +37,7 @@ func (i *impl) GetAuthorInfo(ctx context.Context, req *library.GetAuthorInfoRequ
 		GetAuthorInfoDuration.Observe(float64(time.Since(start).Milliseconds()))
 	}()
 
-	ctx, span := createTracerSpan(ctx, "GetAuthorInfo")
+	ctx, span := CreateTracerSpan(ctx, "GetAuthorInfo")
 	defer span.End()
 
 	entity.SendLoggerInfoWithCondition(i.logger, ctx, "Received GetAuthorInfo request.",
@@ -56,7 +56,7 @@ func (i *impl) GetAuthorInfo(ctx context.Context, req *library.GetAuthorInfoRequ
 	}
 
 	return &library.GetAuthorInfoResponse{
-		Id:   author.ID,
+		Id:   author.Id,
 		Name: author.Name,
 	}, nil
 }

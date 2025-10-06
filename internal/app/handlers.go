@@ -62,7 +62,7 @@ func bookOutboxHandler(
 		if err := json.Unmarshal(data, &book); err != nil {
 			return "", err
 		}
-		return book.ID, nil
+		return book.Id, nil
 	})
 }
 
@@ -75,6 +75,6 @@ func authorOutboxHandler(
 		if err := json.Unmarshal(data, &author); err != nil {
 			return "", err
 		}
-		return author.ID, nil
+		return author.Id, nil
 	})
 }

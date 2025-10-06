@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"errors"
+
 	"go.opentelemetry.io/otel"
 	otelCodes "go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -38,7 +39,7 @@ func SendAddBookLoggerInfo(logger *zap.Logger, ctx context.Context, message, arg
 	)
 }
 
-func createTracerSpan(ctx context.Context, spanMsg string) (context.Context, trace.Span) {
+func CreateTracerSpan(ctx context.Context, spanMsg string) (context.Context, trace.Span) {
 	tracer := otel.Tracer("library-service")
 	return tracer.Start(ctx, spanMsg)
 }

@@ -3,6 +3,7 @@ package entity
 import (
 	"context"
 	"fmt"
+
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )

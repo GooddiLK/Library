@@ -67,7 +67,7 @@ func (p *postgresRepository) AddBook(ctx context.Context, book *entity.Book) (re
 		return nil, err
 	}
 
-	book.ID = id.String()
+	book.Id = id.String()
 
 	err = p.addRelations(ctx, tx, book)
 	if err != nil {
@@ -77,27 +77,27 @@ func (p *postgresRepository) AddBook(ctx context.Context, book *entity.Book) (re
 	return book, nil
 }
 
-func (p *postgresRepository) GetBook(ctx context.Context, bookID string) (*entity.Book, error) {
-	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to get book", layerPost, "book_id", bookID)
+func (p *postgresRepository) GetBook(ctx context.Context, bookId string) (*entity.Book, error) {
+	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to get book", layerPost, "book_id", bookId)
 
 	var book entity.Book
 	var authorIDs []uuid.UUID
 	err := measureQueryLatency("get_book", func() error {
-		return p.db.QueryRow(ctx, getBookQuery, bookID).
-			Scan(&book.ID, &book.Name, &book.CreatedAt, &book.UpdatedAt, &authorIDs)
+		return p.db.QueryRow(ctx, getBookQuery, bookId).
+			Scan(&book.Id, &book.Name, &book.CreatedAt, &book.UpdatedAt, &authorIDs)
 	})
 
 	if err != nil {
 		return nil, mapPostgresError(err, entity.ErrBookNotFound)
 	}
 
-	book.AuthorIDs = convertUUIDsToStrings(authorIDs)
+	book.AuthorIds = convertUUIDsToStrings(authorIDs)
 
 	return &book, nil
 }
 
-func (p *postgresRepository) UpdateBook(ctx context.Context, bookID string, newBookName string, authorIDs []string) (txErr error) {
-	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to update book.", layerPost, "book_id", bookID)
+func (p *postgresRepository) UpdateBook(ctx context.Context, bookId string, newBookName string, authorIds []string) (txErr error) {
+	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to update book.", layerPost, "book_id", bookId)
 
 	tx, rollback, err := p.beginTx(ctx)
 	if err != nil {
@@ -111,12 +111,12 @@ func (p *postgresRepository) UpdateBook(ctx context.Context, bookID string, newB
 		dbQueryLatency.WithLabelValues("update_book").Observe(time.Since(start).Seconds())
 	}()
 
-	_, err = tx.Exec(ctx, updateBookQuery, newBookName, bookID)
+	_, err = tx.Exec(ctx, updateBookQuery, newBookName, bookId)
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.Exec(ctx, updateBookAuthorsQuery, authorIDs, bookID)
+	_, err = tx.Exec(ctx, updateBookAuthorsQuery, authorIds, bookId)
 	if err != nil {
 		return mapPostgresError(err, entity.ErrAuthorNotFound)
 	}
@@ -124,14 +124,14 @@ func (p *postgresRepository) UpdateBook(ctx context.Context, bookID string, newB
 	return nil
 }
 
-func (p *postgresRepository) GetAuthorBooks(ctx context.Context, authorID string) ([]*entity.Book, error) {
-	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to get author books.", layerPost, "author_id", authorID)
+func (p *postgresRepository) GetAuthorBooks(ctx context.Context, authorId string) ([]*entity.Book, error) {
+	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to get author books.", layerPost, "author_id", authorId)
 	start := time.Now()
 	defer func() {
 		dbQueryLatency.WithLabelValues("get_author_books").Observe(time.Since(start).Seconds())
 	}()
 
-	rows, err := p.db.Query(ctx, getAuthorBooksQuery, authorID)
+	rows, err := p.db.Query(ctx, getAuthorBooksQuery, authorId)
 	if err != nil {
 		return nil, err
 	}
@@ -143,12 +143,12 @@ func (p *postgresRepository) GetAuthorBooks(ctx context.Context, authorID string
 		var book entity.Book
 		var authorIDs []uuid.UUID
 
-		if err = rows.Scan(&book.ID, &book.Name, &book.CreatedAt,
+		if err = rows.Scan(&book.Id, &book.Name, &book.CreatedAt,
 			&book.UpdatedAt, &authorIDs); err != nil {
 			return nil, err
 		}
 
-		book.AuthorIDs = convertUUIDsToStrings(authorIDs)
+		book.AuthorIds = convertUUIDsToStrings(authorIDs)
 		books = append(books, &book)
 	}
 
@@ -174,18 +174,18 @@ func (p *postgresRepository) RegisterAuthor(ctx context.Context, author *entity.
 		return nil, err
 	}
 
-	author.ID = id.String()
+	author.Id = id.String()
 
 	return author, nil
 }
 
-func (p *postgresRepository) GetAuthorInfo(ctx context.Context, authorID string) (*entity.Author, error) {
-	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to get author info.", layerPost, "author_id", authorID)
+func (p *postgresRepository) GetAuthorInfo(ctx context.Context, authorId string) (*entity.Author, error) {
+	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to get author info.", layerPost, "author_id", authorId)
 
 	var author entity.Author
 	err := measureQueryLatency("get_author_info", func() error {
-		return p.db.QueryRow(ctx, getAuthorQuery, authorID).
-			Scan(&author.ID, &author.Name)
+		return p.db.QueryRow(ctx, getAuthorQuery, authorId).
+			Scan(&author.Id, &author.Name)
 	})
 
 	if err != nil {
@@ -195,8 +195,8 @@ func (p *postgresRepository) GetAuthorInfo(ctx context.Context, authorID string)
 	return &author, nil
 }
 
-func (p *postgresRepository) ChangeAuthor(ctx context.Context, authorID string, newAuthorName string) (txErr error) {
-	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to change author", layerPost, "author_id", authorID)
+func (p *postgresRepository) ChangeAuthor(ctx context.Context, authorId string, newAuthorName string) (txErr error) {
+	entity.SendLoggerInfoWithCondition(p.logger, ctx, "Start to change author", layerPost, "author_id", authorId)
 
 	tx, rollback, err := p.beginTx(ctx)
 	if err != nil {
@@ -206,7 +206,7 @@ func (p *postgresRepository) ChangeAuthor(ctx context.Context, authorID string, 
 	defer rollback(txErr)
 
 	err = measureQueryLatency("change_author", func() error {
-		_, err = tx.Exec(ctx, updateAuthorQuery, newAuthorName, authorID)
+		_, err = tx.Exec(ctx, updateAuthorQuery, newAuthorName, authorId)
 		return err
 	})
 	if err != nil {
@@ -217,9 +217,9 @@ func (p *postgresRepository) ChangeAuthor(ctx context.Context, authorID string, 
 }
 
 func (p *postgresRepository) addRelations(ctx context.Context, tx pgx.Tx, book *entity.Book) error {
-	rows := make([][]interface{}, len(book.AuthorIDs))
-	for i, authorID := range book.AuthorIDs {
-		rows[i] = []interface{}{authorID, book.ID}
+	rows := make([][]interface{}, len(book.AuthorIds))
+	for i, authorID := range book.AuthorIds {
+		rows[i] = []interface{}{authorID, book.Id}
 	}
 
 	_, err := tx.CopyFrom(

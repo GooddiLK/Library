@@ -17,8 +17,6 @@ import (
 // Ошибка: пришли не валидные данные
 // Ошибка: ошибка с уровня usecase
 
-// Возвращаемые ошибки не проверяются, я хз как это нормально сделать
-
 func TestAddBook(t *testing.T) {
 	t.Parallel() // Разрешение на параллельный запуск тестов в рамках 1 пакета
 	logger, _ := zap.NewProduction()
@@ -40,15 +38,15 @@ func TestAddBook(t *testing.T) {
 			name: "add book | without authors",
 			args: args{ctx,
 				&library.AddBookRequest{
-					Name:     "book1",
-					AuthorId: make([]string, 0),
+					Name:      "book1",
+					AuthorIds: make([]string, 0),
 				},
 			},
 			want: &library.AddBookResponse{
 				Book: &library.Book{
-					Id:       uuid1,
-					Name:     "book1",
-					AuthorId: make([]string, 0),
+					Id:        uuid1,
+					Name:      "book1",
+					AuthorIds: make([]string, 0),
 				},
 			},
 			wantErr:   false,
@@ -58,15 +56,15 @@ func TestAddBook(t *testing.T) {
 			name: "add book | with authors",
 			args: args{ctx,
 				&library.AddBookRequest{
-					Name:     "book2",
-					AuthorId: []string{uuid2, uuid3, uuid4},
+					Name:      "book2",
+					AuthorIds: []string{uuid2, uuid3, uuid4},
 				},
 			},
 			want: &library.AddBookResponse{
 				Book: &library.Book{
-					Id:       uuid5,
-					Name:     "book2",
-					AuthorId: []string{uuid2, uuid3, uuid4},
+					Id:        uuid5,
+					Name:      "book2",
+					AuthorIds: []string{uuid2, uuid3, uuid4},
 				},
 			},
 			wantErr:   false,
@@ -77,8 +75,8 @@ func TestAddBook(t *testing.T) {
 			args: args{
 				ctx,
 				&library.AddBookRequest{
-					Name:     "book",
-					AuthorId: []string{"1"},
+					Name:      "book",
+					AuthorIds: []string{"1"},
 				},
 			},
 			wantErr:   true,
@@ -89,8 +87,8 @@ func TestAddBook(t *testing.T) {
 			args: args{
 				ctx,
 				&library.AddBookRequest{
-					Name:     "",
-					AuthorId: make([]string, 0),
+					Name:      "",
+					AuthorIds: make([]string, 0),
 				},
 			},
 			wantErr:   true,
@@ -101,8 +99,15 @@ func TestAddBook(t *testing.T) {
 			args: args{
 				ctx,
 				&library.AddBookRequest{
-					Name:     "book",
-					AuthorId: make([]string, 0),
+					Name:      "book",
+					AuthorIds: make([]string, 0),
+				},
+			},
+			want: &library.AddBookResponse{
+				Book: &library.Book{
+					Id:        uuid5,
+					Name:      "book",
+					AuthorIds: []string{},
 				},
 			},
 			wantErr:   true,
@@ -132,8 +137,8 @@ func TestAddBook(t *testing.T) {
 				bookUseCase.
 					// Описание действий заглушки
 					EXPECT().
-					AddBook(ctx, test.args.req.GetName(), test.args.req.GetAuthorId()).
-					Return(test.want.Book, mockErr)
+					AddBook(gomock.Any(), test.args.req.GetName(), test.args.req.GetAuthorIds()).
+					Return(ProtoToBook(test.want.Book), mockErr)
 			}
 
 			got, err := service.AddBook(test.args.ctx, test.args.req)
@@ -141,11 +146,13 @@ func TestAddBook(t *testing.T) {
 			if err == nil && test.want != nil {
 				assert.Equal(t, test.want.GetBook().GetId(), got.GetBook().GetId())
 				assert.Equal(t, test.want.GetBook().GetName(), got.GetBook().GetName())
-				assert.Equal(t, test.want.GetBook().GetAuthorId(), got.GetBook().GetAuthorId())
+				assert.Equal(t, test.want.GetBook().GetAuthorIds(), got.GetBook().GetAuthorIds())
 			}
 
 			if test.wantErr {
 				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}

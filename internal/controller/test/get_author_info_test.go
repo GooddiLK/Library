@@ -44,7 +44,7 @@ func Test_GetAuthorInfo(t *testing.T) {
 				},
 			},
 			wantAuthor: &entity.Author{
-				ID:   "7a948d89-108c-4133-be30-788bd453c0cd",
+				Id:   "7a948d89-108c-4133-be30-788bd453c0cd",
 				Name: "Author Name",
 			},
 			want: &library.GetAuthorInfoResponse{

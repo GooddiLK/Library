@@ -43,8 +43,7 @@ func (t transactor) WithTx(
 
 	ctxWithTx, tx, err := injectTx(ctx, t.db)
 	if err != nil {
-		return fmt.Errorf(
-			"Can not inject transaction, error: %w", err)
+		return fmt.Errorf("Can not inject transaction, error: %w", err)
 	}
 
 	// В случае возникновения ошибки в процессе выполнения функции, транзакция отменяется.
