@@ -2,7 +2,7 @@ package controller
 
 import (
 	"context"
-	"errors"
+	"github.com/project/library/internal/entity"
 	"testing"
 
 	"github.com/project/library/generated/api/library"
@@ -31,7 +31,7 @@ func TestAddBook(t *testing.T) {
 		name      string
 		args      args
 		want      *library.AddBookResponse
-		wantErr   bool
+		wantErr   error
 		mocksUsed bool
 	}{
 		{
@@ -49,7 +49,7 @@ func TestAddBook(t *testing.T) {
 					AuthorIds: make([]string, 0),
 				},
 			},
-			wantErr:   false,
+			wantErr:   nil,
 			mocksUsed: true,
 		},
 		{
@@ -67,7 +67,7 @@ func TestAddBook(t *testing.T) {
 					AuthorIds: []string{uuid2, uuid3, uuid4},
 				},
 			},
-			wantErr:   false,
+			wantErr:   nil,
 			mocksUsed: true,
 		},
 		{
@@ -79,7 +79,7 @@ func TestAddBook(t *testing.T) {
 					AuthorIds: []string{"1"},
 				},
 			},
-			wantErr:   true,
+			wantErr:   mockErr,
 			mocksUsed: false,
 		},
 		{
@@ -91,7 +91,7 @@ func TestAddBook(t *testing.T) {
 					AuthorIds: make([]string, 0),
 				},
 			},
-			wantErr:   true,
+			wantErr:   mockErr,
 			mocksUsed: false,
 		},
 		{
@@ -103,14 +103,8 @@ func TestAddBook(t *testing.T) {
 					AuthorIds: make([]string, 0),
 				},
 			},
-			want: &library.AddBookResponse{
-				Book: &library.Book{
-					Id:        uuid5,
-					Name:      "book",
-					AuthorIds: []string{},
-				},
-			},
-			wantErr:   true,
+			want:      nil,
+			wantErr:   mockErr,
 			mocksUsed: true,
 		},
 	}
@@ -125,20 +119,19 @@ func TestAddBook(t *testing.T) {
 
 			authorUseCase := mocks.NewMockAuthorUseCase(ctrl)
 			bookUseCase := mocks.NewMockBooksUseCase(ctrl)
-
-			// Создаем grpc сервер с внедренными моками
 			service := controller.New(logger, bookUseCase, authorUseCase)
 
 			if test.mocksUsed {
-				var mockErr error
-				if test.wantErr {
-					mockErr = errors.New("mock error")
+				// Описание действий заглушки
+				var book *entity.Book
+				if test.want != nil {
+					book = ProtoToBook(test.want.Book)
 				}
+
 				bookUseCase.
-					// Описание действий заглушки
 					EXPECT().
 					AddBook(gomock.Any(), test.args.req.GetName(), test.args.req.GetAuthorIds()).
-					Return(ProtoToBook(test.want.Book), mockErr)
+					Return(book, test.wantErr)
 			}
 
 			got, err := service.AddBook(test.args.ctx, test.args.req)
@@ -149,10 +142,10 @@ func TestAddBook(t *testing.T) {
 				assert.Equal(t, test.want.GetBook().GetAuthorIds(), got.GetBook().GetAuthorIds())
 			}
 
-			if test.wantErr {
-				assert.Error(t, err)
-			} else {
+			if test.wantErr == nil {
 				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
 			}
 		})
 	}

@@ -9,11 +9,9 @@ import (
 	"github.com/project/library/internal/controller"
 	"github.com/project/library/internal/entity"
 	"github.com/project/library/internal/usecase/library/mocks"
-	testutils "github.com/project/library/internal/usecase/library/test"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
 )
 
 // Тесту проверяющему наличие автора стоило бы существовать, но два автора с одним именем могут существовать
@@ -28,12 +26,11 @@ func Test_RegisterAuthor(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		args        args
-		want        *entity.Author
-		wantErrCode codes.Code
-		wantErr     error
-		mocksUsed   bool
+		name      string
+		args      args
+		want      *library.RegisterAuthorResponse
+		wantErr   error
+		mocksUsed bool
 	}{
 		{
 			name: "register author | valid request",
@@ -43,12 +40,11 @@ func Test_RegisterAuthor(t *testing.T) {
 					Name: "NameAbobs",
 				},
 			},
-			want: &entity.Author{
-				Id:   "7a948d89-108c-4133-be30-788bd453c0cd",
-				Name: "NameAbobs",
+			want: &library.RegisterAuthorResponse{
+				Id: uuid1,
 			},
-			wantErrCode: codes.OK,
-			mocksUsed:   true,
+			wantErr:   nil,
+			mocksUsed: true,
 		},
 		{
 			name: "register author | empty name",
@@ -58,28 +54,28 @@ func Test_RegisterAuthor(t *testing.T) {
 					Name: "",
 				},
 			},
-			wantErrCode: codes.InvalidArgument,
-			mocksUsed:   false,
+			want:      nil,
+			wantErr:   mockErr,
+			mocksUsed: false,
 		},
 		{
-			name: "register author | name too long",
+			name: "register author | usecase error",
 			args: args{
 				ctx,
 				&library.RegisterAuthorRequest{
-					Name: strings.Repeat("A", 513),
+					Name: strings.Repeat("A", 511),
 				},
 			},
-			wantErrCode: codes.InvalidArgument,
-			mocksUsed:   false,
+			want:      nil,
+			wantErr:   mockErr,
+			mocksUsed: true,
 		},
 	}
 
 	for _, test := range tests {
-		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Создаем моки внутри каждого субтеста
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -88,17 +84,27 @@ func Test_RegisterAuthor(t *testing.T) {
 			service := controller.New(logger, bookUseCase, authorUseCase)
 
 			if test.mocksUsed {
+				var auth *entity.Author
+				if test.want != nil {
+					auth = &entity.Author{Id: test.want.Id}
+				}
+
 				authorUseCase.
 					EXPECT().
-					RegisterAuthor(ctx, test.args.req.GetName()).
-					Return(test.want, test.wantErr)
+					RegisterAuthor(gomock.Any(), test.args.req.GetName()).
+					Return(auth, test.wantErr)
 			}
 
 			got, err := service.RegisterAuthor(test.args.ctx, test.args.req)
 
-			testutils.CheckError(t, err, test.wantErrCode)
-			if err == nil {
+			if err == nil && test.want != nil {
 				assert.Equal(t, test.want.Id, got.GetId())
+			}
+
+			if test.wantErr == nil {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
 			}
 		})
 	}

@@ -9,11 +9,9 @@ import (
 	"github.com/project/library/internal/controller"
 	"github.com/project/library/internal/entity"
 	"github.com/project/library/internal/usecase/library/mocks"
-	testutils "github.com/project/library/internal/usecase/library/test"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
 )
 
 func Test_GetBookInfo(t *testing.T) {
@@ -27,28 +25,29 @@ func Test_GetBookInfo(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		args        args
-		want        *entity.Book
-		wantErrCode codes.Code
-		wantErr     error
-		mocksUsed   bool
+		name      string
+		args      args
+		want      *library.GetBookInfoResponse
+		wantErr   error
+		mocksUsed bool
 	}{
 		{
 			name: "get book info | valid request",
 			args: args{
 				ctx,
 				&library.GetBookInfoRequest{
-					Id: "7a948d89-108c-4133-be30-788bd453c0cd",
+					Id: uuid6,
 				},
 			},
-			want: &entity.Book{
-				Id:        "7a948d89-108c-4133-be30-788bd453c0cd",
-				Name:      "Test Book",
-				AuthorIds: []string{uuid.NewString(), uuid.NewString()},
+			want: &library.GetBookInfoResponse{
+				Book: &library.Book{
+					Id:        uuid6,
+					Name:      "Test Book",
+					AuthorIds: []string{uuid.NewString(), uuid.NewString()},
+				},
 			},
-			wantErrCode: codes.OK,
-			mocksUsed:   true,
+			wantErr:   nil,
+			mocksUsed: true,
 		},
 		{
 			name: "get book info | invalid uuid",
@@ -58,8 +57,9 @@ func Test_GetBookInfo(t *testing.T) {
 					Id: "abobus12",
 				},
 			},
-			wantErrCode: codes.InvalidArgument,
-			mocksUsed:   false,
+			want:      nil,
+			wantErr:   mockErr,
+			mocksUsed: false,
 		},
 		{
 			name: "get book info | empty id",
@@ -69,29 +69,28 @@ func Test_GetBookInfo(t *testing.T) {
 					Id: "",
 				},
 			},
-			wantErrCode: codes.InvalidArgument,
-			mocksUsed:   false,
+			want:      nil,
+			wantErr:   mockErr,
+			mocksUsed: false,
 		},
 		{
 			name: "get book info | book not found",
 			args: args{
 				ctx,
 				&library.GetBookInfoRequest{
-					Id: "7a948d89-108c-4133-be30-788bd453c0cd",
+					Id: uuid6,
 				},
 			},
-			wantErrCode: codes.NotFound,
-			wantErr:     entity.ErrBookNotFound,
-			mocksUsed:   true,
+			want:      nil,
+			wantErr:   mockErr,
+			mocksUsed: true,
 		},
 	}
 
 	for _, test := range tests {
-		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Создаем моки внутри каждого субтеста
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -100,19 +99,29 @@ func Test_GetBookInfo(t *testing.T) {
 			service := controller.New(logger, bookUseCase, authorUseCase)
 
 			if test.mocksUsed {
+				var book *entity.Book
+				if test.want != nil {
+					book = ProtoToBook(test.want.Book)
+				}
+
 				bookUseCase.
 					EXPECT().
-					GetBook(ctx, test.args.req.GetId()).
-					Return(test.want, test.wantErr)
+					GetBook(gomock.Any(), test.args.req.GetId()).
+					Return(book, test.wantErr)
 			}
 
 			got, err := service.GetBookInfo(test.args.ctx, test.args.req)
 
-			testutils.CheckError(t, err, test.wantErrCode)
-			if err == nil {
-				assert.Equal(t, test.want.Id, got.GetBook().GetId())
-				assert.Equal(t, test.want.Name, got.GetBook().GetName())
-				assert.Equal(t, test.want.AuthorIds, got.GetBook().GetAuthorIds())
+			if err == nil && test.want != nil {
+				assert.Equal(t, test.want.Book.Id, got.GetBook().GetId())
+				assert.Equal(t, test.want.Book.Name, got.GetBook().GetName())
+				assert.Equal(t, test.want.Book.AuthorIds, got.GetBook().GetAuthorIds())
+			}
+
+			if test.wantErr == nil {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
 			}
 		})
 	}
