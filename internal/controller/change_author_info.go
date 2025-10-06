@@ -44,14 +44,14 @@ func (i *impl) ChangeAuthorInfo(ctx context.Context, req *library.ChangeAuthorIn
 		layerCont, "author_id", req.GetId())
 
 	if err := req.ValidateAll(); err != nil {
-		SendSpanLoggerError(i.logger, ctx, "Invalid ChangeAuthorInfo request.", err, codes.InvalidArgument)
+		SendSpanStatusLoggerError(i.logger, ctx, "Invalid ChangeAuthorInfo request.", err, codes.InvalidArgument)
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	err := i.authorUseCase.ChangeAuthor(ctx, req.GetId(), req.GetName())
 
 	if err != nil {
-		SendSpanLoggerError(i.logger, ctx, "Failed to change author info.", err, codes.Internal)
+		SendSpanStatusLoggerError(i.logger, ctx, "Failed to change author info.", err, codes.Internal)
 		return nil, i.ConvertErr(err)
 	}
 

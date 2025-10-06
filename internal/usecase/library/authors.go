@@ -3,7 +3,6 @@ package library
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -26,25 +25,23 @@ func (l *libraryImpl) RegisterAuthor(ctx context.Context, authorName string) (*e
 			Name: authorName,
 		})
 		if txErr != nil {
-			span.RecordError(fmt.Errorf("error register author to repostitory: %w", txErr))
-			//l.logger.Error("Error register author to repository.", zap.Error(txErr))
+			entity.SendLoggerSpanError(l.logger, ctx, "Error register author to repository.", layerLib, txErr)
 			return txErr
 		}
+
+		span.SetAttributes(attribute.String("author_id", author.ID))
 
 		// Marshal & Unmarshal медленно работают
 		serialized, txErr := json.Marshal(author)
 		if txErr != nil {
-			span.RecordError(fmt.Errorf("error serializing author data: %w", txErr))
-			//l.logger.Error("Error serializing author data.", zap.Error(txErr))
+			entity.SendLoggerSpanError(l.logger, ctx, "Error serializing author data.", layerLib, txErr)
 			return txErr
 		}
 
 		idempotencyKey := repository.OutboxKindAuthor.String() + "_" + author.ID
-		txErr = l.outboxRepository.SendMessage(
-			ctx, idempotencyKey, repository.OutboxKindAuthor, serialized)
+		txErr = l.outboxRepository.SendMessage(ctx, idempotencyKey, repository.OutboxKindAuthor, serialized)
 		if txErr != nil {
-			span.RecordError(fmt.Errorf("error sending message to outbox: %w", txErr))
-			//l.logger.Error("Error sending message to outbox.", zap.Error(txErr))
+			entity.SendLoggerSpanError(l.logger, ctx, "Error sending message to outbox.", layerLib, txErr)
 			return txErr
 		}
 
@@ -53,12 +50,10 @@ func (l *libraryImpl) RegisterAuthor(ctx context.Context, authorName string) (*e
 		return nil
 	})
 	if err != nil {
-		span.RecordError(fmt.Errorf("Failed register author to repository: %w", err))
-		//l.logger.Error("Failed to register author.", zap.Error(err))
+		entity.SendLoggerSpanError(l.logger, ctx, "Failed to register author.", layerLib, err)
 		return nil, err
 	}
 
-	span.SetAttributes(attribute.String("author_id", author.ID))
 	entity.SendLoggerInfoWithCondition(l.logger, ctx, "Author registered.", layerLib, "author_id", author.ID)
 
 	return author, nil

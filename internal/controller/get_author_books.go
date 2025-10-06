@@ -46,14 +46,14 @@ func (i *impl) GetAuthorBooks(req *library.GetAuthorBooksRequest, server library
 		layerCont, "author_id", req.GetAuthorId())
 
 	if err := req.ValidateAll(); err != nil {
-		SendSpanLoggerError(i.logger, ctx, "Invalid GetAuthorBooks request.", err, codes.InvalidArgument)
+		SendSpanStatusLoggerError(i.logger, ctx, "Invalid GetAuthorBooks request.", err, codes.InvalidArgument)
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	books, err := i.booksUseCase.GetAuthorBooks(ctx, req.GetAuthorId())
 
 	if err != nil {
-		SendSpanLoggerError(i.logger, ctx, "Failed to get author books.", err, codes.Internal)
+		SendSpanStatusLoggerError(i.logger, ctx, "Failed to get author books.", err, codes.Internal)
 		return i.ConvertErr(err)
 	}
 

@@ -44,14 +44,14 @@ func (i *impl) RegisterAuthor(ctx context.Context, req *library.RegisterAuthorRe
 		layerCont, "author_name", req.GetName())
 
 	if err := req.ValidateAll(); err != nil {
-		SendSpanLoggerError(i.logger, ctx, "Invalid RegisterAuthor request.", err, codes.InvalidArgument)
+		SendSpanStatusLoggerError(i.logger, ctx, "Invalid RegisterAuthor request.", err, codes.InvalidArgument)
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	author, err := i.authorUseCase.RegisterAuthor(ctx, req.GetName())
 
 	if err != nil {
-		SendSpanLoggerError(i.logger, ctx, "Failed to register author.", err, codes.Internal)
+		SendSpanStatusLoggerError(i.logger, ctx, "Failed to register author.", err, codes.Internal)
 		return nil, i.ConvertErr(err)
 	}
 

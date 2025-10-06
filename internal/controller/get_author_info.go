@@ -44,14 +44,14 @@ func (i *impl) GetAuthorInfo(ctx context.Context, req *library.GetAuthorInfoRequ
 		layerCont, "author_id", req.GetId())
 
 	if err := req.ValidateAll(); err != nil {
-		SendSpanLoggerError(i.logger, ctx, "Invalid GetAuthorInfo request.", err, codes.InvalidArgument)
+		SendSpanStatusLoggerError(i.logger, ctx, "Invalid GetAuthorInfo request.", err, codes.InvalidArgument)
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	author, err := i.authorUseCase.GetAuthorInfo(ctx, req.GetId())
 
 	if err != nil {
-		SendSpanLoggerError(i.logger, ctx, "Failed to get author info.", err, codes.Internal)
+		SendSpanStatusLoggerError(i.logger, ctx, "Failed to get author info.", err, codes.Internal)
 		return nil, i.ConvertErr(err)
 	}
 

@@ -23,10 +23,6 @@
 ## Makefile
 Комментарии в Makefile стоит писать ТОЛЬКО в отдельных строках.
 
-В результате работы образуется временные файлы:
-* Кеш easyP ~100мб
-* bin ~200мб
-
 ## Унификация технологий
 * Структура проекта [go-clean-template](https://github.com/evrone/go-clean-template)
 * Для логирования [zap](https://github.com/uber-go/zap)

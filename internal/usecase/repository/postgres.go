@@ -70,7 +70,6 @@ func (p *postgresRepository) AddBook(ctx context.Context, book *entity.Book) (re
 	book.ID = id.String()
 
 	err = p.addRelations(ctx, tx, book)
-
 	if err != nil {
 		return nil, mapPostgresError(err, entity.ErrAuthorNotFound)
 	}

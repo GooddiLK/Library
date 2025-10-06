@@ -45,14 +45,14 @@ func (i *impl) GetBookInfo(ctx context.Context, req *library.GetBookInfoRequest)
 		layerCont, "book_id", req.GetId())
 
 	if err := req.ValidateAll(); err != nil {
-		SendSpanLoggerError(i.logger, ctx, "Invalid GetBookInfo request.", err, codes.InvalidArgument)
+		SendSpanStatusLoggerError(i.logger, ctx, "Invalid GetBookInfo request.", err, codes.InvalidArgument)
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	book, err := i.booksUseCase.GetBook(ctx, req.GetId())
 
 	if err != nil {
-		SendSpanLoggerError(i.logger, ctx, "Failed to get book.", err, codes.Internal)
+		SendSpanStatusLoggerError(i.logger, ctx, "Failed to get book.", err, codes.Internal)
 		return nil, i.ConvertErr(err)
 	}
 

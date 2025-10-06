@@ -44,14 +44,14 @@ func (i *impl) AddBook(ctx context.Context, req *library.AddBookRequest) (*libra
 		layerCont, req.GetName(), req.GetAuthorId())
 
 	if err := req.ValidateAll(); err != nil {
-		SendSpanLoggerError(i.logger, ctx, "Invalid AddBook request.", err, codes.InvalidArgument)
+		SendSpanStatusLoggerError(i.logger, ctx, "Invalid AddBook request.", err, codes.InvalidArgument)
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	book, err := i.booksUseCase.AddBook(ctx, req.GetName(), req.GetAuthorId())
 
 	if err != nil {
-		SendSpanLoggerError(i.logger, ctx, "Failed to add book.", err, codes.Internal)
+		SendSpanStatusLoggerError(i.logger, ctx, "Failed to add book.", err, codes.Internal)
 		return nil, i.ConvertErr(err)
 	}
 

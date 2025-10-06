@@ -3,9 +3,8 @@ package library
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-
 	"go.opentelemetry.io/otel/attribute"
+
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/project/library/internal/entity"
@@ -27,24 +26,22 @@ func (l *libraryImpl) AddBook(ctx context.Context, name string, authorIDs []stri
 			AuthorIDs: authorIDs,
 		})
 		if txErr != nil {
-			span.RecordError(fmt.Errorf("error adding book to repostitory: %w", txErr))
-			//l.logger.Error("Error adding book to repository.", zap.Error(txErr))
+			entity.SendLoggerSpanError(l.logger, ctx, "Error adding book to repository.", layerLib, txErr)
 			return txErr
 		}
 
+		span.SetAttributes(attribute.String("book_id", book.ID))
+
 		serialized, txErr := json.Marshal(book)
 		if txErr != nil {
-			span.RecordError(fmt.Errorf("error serializing book data: %w", txErr))
-			//l.logger.Error("Error serializing book data.", zap.Error(txErr))
+			entity.SendLoggerSpanError(l.logger, ctx, "Error serializing book data.", layerLib, txErr)
 			return txErr
 		}
 
 		idempotencyKey := repository.OutboxKindBook.String() + "_" + book.ID
-		txErr = l.outboxRepository.SendMessage(
-			ctx, idempotencyKey, repository.OutboxKindBook, serialized)
+		txErr = l.outboxRepository.SendMessage(ctx, idempotencyKey, repository.OutboxKindBook, serialized)
 		if txErr != nil {
-			span.RecordError(fmt.Errorf("error sending message to outbox: %w", txErr))
-			//l.logger.Error("Error sending message to outbox.", zap.Error(txErr))
+			entity.SendLoggerSpanError(l.logger, ctx, "Error sending message to outbox.", layerLib, txErr)
 			return txErr
 		}
 
@@ -52,14 +49,11 @@ func (l *libraryImpl) AddBook(ctx context.Context, name string, authorIDs []stri
 
 		return nil
 	})
-
 	if err != nil {
-		span.RecordError(fmt.Errorf("Failed to add book to repository: %w", err))
-		//l.logger.Error("Failed to add book.", zap.Error(err))
+		entity.SendLoggerSpanError(l.logger, ctx, "Failed to add book.", layerLib, err)
 		return nil, err
 	}
 
-	span.SetAttributes(attribute.String("book_id", book.ID))
 	entity.SendLoggerInfoWithCondition(l.logger, ctx, "Book added.", layerLib, "book_id", book.ID)
 
 	return book, nil

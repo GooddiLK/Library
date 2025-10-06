@@ -44,14 +44,14 @@ func (i *impl) UpdateBook(ctx context.Context, req *library.UpdateBookRequest) (
 		layerCont, "book_id", req.GetId())
 
 	if err := req.ValidateAll(); err != nil {
-		SendSpanLoggerError(i.logger, ctx, "Invalid UpdateBook request.", err, codes.InvalidArgument)
+		SendSpanStatusLoggerError(i.logger, ctx, "Invalid UpdateBook request.", err, codes.InvalidArgument)
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	err := i.booksUseCase.UpdateBook(ctx, req.GetId(), req.GetName(), req.GetAuthorIds())
 
 	if err != nil {
-		SendSpanLoggerError(i.logger, ctx, "Failed to update book.", err, codes.Internal)
+		SendSpanStatusLoggerError(i.logger, ctx, "Failed to update book.", err, codes.Internal)
 		return nil, i.ConvertErr(err)
 	}
 
