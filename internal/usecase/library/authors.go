@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -30,6 +31,7 @@ func (l *libraryImpl) RegisterAuthor(ctx context.Context, authorName string) (*e
 			return txErr
 		}
 
+		// Marshal & Unmarshal медленно работают
 		serialized, txErr := json.Marshal(author)
 		if txErr != nil {
 			span.RecordError(fmt.Errorf("error serializing author data: %w", txErr))

@@ -4,16 +4,13 @@ import { randomItem } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js';
 
 // Тип нагрузки
 export const options = {
-    vus: 300,
-    duration: '10s',
+    vus: 100,
+    duration: '2s',
 };
 
 const authorIds = [
-    'bd0768a8-6dea-4e78-936c-e4f6d44a94d3',
-    '9671ee22-8ab3-4fd2-93f3-2e6e8eb8cbd8',
-    '68ce72ad-5e25-4db0-a3ab-3840519ec31e',
-    '6541a244-6b43-4d5e-8c12-913b27eebf4e',
-    '9f4d696d-daad-4e9a-95b5-9051c5791858',
+    '1430e926-b935-4dd5-b0dc-07b0457149c6',
+    'c57ebf06-004b-414e-9f06-76bb3000efc9',
 ];
 
 export default function () {

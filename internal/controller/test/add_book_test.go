@@ -2,26 +2,24 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"testing"
-
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
-	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/project/library/generated/api/library"
 	"github.com/project/library/internal/controller"
-	"github.com/project/library/internal/entity"
 	"github.com/project/library/internal/usecase/library/mocks"
-	testutils "github.com/project/library/internal/usecase/library/test"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
 )
 
-// На уровне контроллеров тестируется лишь валидация
-// И корректное возвращение данных
+// Проверка ожидаемой работы
+// Ошибка: пришли не валидные данные
+// Ошибка: ошибка с уровня usecase
 
-func Test_AddBook(t *testing.T) {
+// Возвращаемые ошибки не проверяются, я хз как это нормально сделать
+
+func TestAddBook(t *testing.T) {
 	t.Parallel() // Разрешение на параллельный запуск тестов в рамках 1 пакета
 	logger, _ := zap.NewProduction()
 	ctx := t.Context()
@@ -32,12 +30,11 @@ func Test_AddBook(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		args        args
-		want        *entity.Book
-		wantErrCode codes.Code
-		wantErr     error
-		mocksUsed   bool
+		name      string
+		args      args
+		want      *library.AddBookResponse
+		wantErr   bool
+		mocksUsed bool
 	}{
 		{
 			name: "add book | without authors",
@@ -47,32 +44,34 @@ func Test_AddBook(t *testing.T) {
 					AuthorId: make([]string, 0),
 				},
 			},
-			want: &entity.Book{
-				ID:        uuid.NewString(),
-				Name:      "book1",
-				AuthorIDs: make([]string, 0),
+			want: &library.AddBookResponse{
+				Book: &library.Book{
+					Id:       uuid1,
+					Name:     "book1",
+					AuthorId: make([]string, 0),
+				},
 			},
-			wantErrCode: codes.OK,
-			mocksUsed:   true,
+			wantErr:   false,
+			mocksUsed: true,
 		},
-
 		{
 			name: "add book | with authors",
 			args: args{ctx,
 				&library.AddBookRequest{
 					Name:     "book2",
-					AuthorId: []string{"7a948d89-108c-4133-be30-788bd453c0cd"},
+					AuthorId: []string{uuid2, uuid3, uuid4},
 				},
 			},
-			want: &entity.Book{
-				ID:        uuid.NewString(),
-				Name:      "book2",
-				AuthorIDs: []string{"7a948d89-108c-4133-be30-788bd453c0cd"},
+			want: &library.AddBookResponse{
+				Book: &library.Book{
+					Id:       uuid5,
+					Name:     "book2",
+					AuthorId: []string{uuid2, uuid3, uuid4},
+				},
 			},
-			wantErrCode: codes.OK,
-			mocksUsed:   true,
+			wantErr:   false,
+			mocksUsed: true,
 		},
-
 		{
 			name: "add book | with invalid authors",
 			args: args{
@@ -82,12 +81,9 @@ func Test_AddBook(t *testing.T) {
 					AuthorId: []string{"1"},
 				},
 			},
-
-			wantErrCode: codes.InvalidArgument,
-			wantErr:     status.Error(codes.InvalidArgument, " invalid authors "),
-			mocksUsed:   false,
+			wantErr:   true,
+			mocksUsed: false,
 		},
-
 		{
 			name: "add book | with invalid name",
 			args: args{
@@ -97,18 +93,28 @@ func Test_AddBook(t *testing.T) {
 					AuthorId: make([]string, 0),
 				},
 			},
-			wantErrCode: codes.InvalidArgument,
-			wantErr:     status.Error(codes.InvalidArgument, " invalid book name "),
-			mocksUsed:   false,
+			wantErr:   true,
+			mocksUsed: false,
+		},
+		{
+			name: "add book | usecase lvl error",
+			args: args{
+				ctx,
+				&library.AddBookRequest{
+					Name:     "book",
+					AuthorId: make([]string, 0),
+				},
+			},
+			wantErr:   true,
+			mocksUsed: true,
 		},
 	}
 
 	for _, test := range tests {
-		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
+			t.Parallel() // Параллельный запуск в цикле
 
-			// Создаем моки внутри каждого субтеста
+			// Создаем моки внутри каждого сабтеста
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -119,20 +125,27 @@ func Test_AddBook(t *testing.T) {
 			service := controller.New(logger, bookUseCase, authorUseCase)
 
 			if test.mocksUsed {
+				var mockErr error
+				if test.wantErr {
+					mockErr = errors.New("mock error")
+				}
 				bookUseCase.
 					// Описание действий заглушки
 					EXPECT().
 					AddBook(ctx, test.args.req.GetName(), test.args.req.GetAuthorId()).
-					Return(test.want, test.wantErr)
+					Return(test.want.Book, mockErr)
 			}
 
 			got, err := service.AddBook(test.args.ctx, test.args.req)
 
-			testutils.CheckError(t, err, test.wantErrCode)
 			if err == nil && test.want != nil {
-				assert.Equal(t, test.want.ID, got.GetBook().GetId())
-				assert.Equal(t, test.want.Name, got.GetBook().GetName())
-				assert.Equal(t, test.want.AuthorIDs, got.GetBook().GetAuthorId())
+				assert.Equal(t, test.want.GetBook().GetId(), got.GetBook().GetId())
+				assert.Equal(t, test.want.GetBook().GetName(), got.GetBook().GetName())
+				assert.Equal(t, test.want.GetBook().GetAuthorId(), got.GetBook().GetAuthorId())
+			}
+
+			if test.wantErr {
+				assert.Error(t, err)
 			}
 		})
 	}

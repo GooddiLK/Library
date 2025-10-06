@@ -2,14 +2,12 @@ package controller
 
 import (
 	"context"
+	"time"
+
 	"github.com/project/library/internal/entity"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel"
-	otelCodes "go.opentelemetry.io/otel/codes"
-	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"time"
 
 	"github.com/project/library/generated/api/library"
 )
@@ -39,25 +37,21 @@ func (i *impl) ChangeAuthorInfo(ctx context.Context, req *library.ChangeAuthorIn
 		ChangeAuthorInfoDuration.Observe(float64(time.Since(start).Milliseconds()))
 	}()
 
-	tracer := otel.Tracer("library-service")
-	ctx, span := tracer.Start(ctx, "ChangeAuthorInfo")
+	ctx, span := createTracerSpan(ctx, "ChangeAuthorInfo")
 	defer span.End()
 
 	entity.SendLoggerInfoWithCondition(i.logger, ctx, "Received ChangeAuthorInfo request.",
 		layerCont, "author_id", req.GetId())
 
 	if err := req.ValidateAll(); err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelCodes.Code(codes.InvalidArgument), "Invalid ChangeAuthorInfo request.")
-		i.logger.Error("Invalid ChangeAuthorInfo request.", zap.Error(err))
+		SendSpanLoggerError(i.logger, ctx, "Invalid ChangeAuthorInfo request.", err, codes.InvalidArgument)
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	err := i.authorUseCase.ChangeAuthor(ctx, req.GetId(), req.GetName())
 
 	if err != nil {
-		span.RecordError(err)
-		i.logger.Error("Failed to change author info.", zap.Error(err))
+		SendSpanLoggerError(i.logger, ctx, "Failed to change author info.", err, codes.Internal)
 		return nil, i.ConvertErr(err)
 	}
 

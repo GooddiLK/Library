@@ -2,14 +2,12 @@ package controller
 
 import (
 	"context"
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel"
-	otelCodes "go.opentelemetry.io/otel/codes"
-	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"time"
 
 	"github.com/project/library/generated/api/library"
 )
@@ -39,29 +37,21 @@ func (i *impl) AddBook(ctx context.Context, req *library.AddBookRequest) (*libra
 		AddBookDuration.Observe(float64(time.Since(start).Milliseconds()))
 	}()
 
-	tracer := otel.Tracer("library-service")
-	ctx, span := tracer.Start(ctx, "AddBook")
+	ctx, span := createTracerSpan(ctx, "AddBook")
 	defer span.End()
 
-	i.logger.Info("Received AddBook request.",
-		zap.String("trace_id", span.SpanContext().TraceID().String()),
-		zap.String("layer", layerCont),
-		zap.String("book_name", req.GetName()),
-		zap.Strings("author_ids", req.GetAuthorId()),
-	)
+	SendAddBookLoggerInfo(i.logger, ctx, "Received AddBook request.",
+		layerCont, req.GetName(), req.GetAuthorId())
 
 	if err := req.ValidateAll(); err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelCodes.Code(codes.InvalidArgument), "Invalid AddBook request.")
-		i.logger.Error("Invalid AddBook request.", zap.Error(err))
+		SendSpanLoggerError(i.logger, ctx, "Invalid AddBook request.", err, codes.InvalidArgument)
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	book, err := i.booksUseCase.AddBook(ctx, req.GetName(), req.GetAuthorId())
 
 	if err != nil {
-		span.RecordError(err)
-		i.logger.Error("Failed to add book.", zap.Error(err))
+		SendSpanLoggerError(i.logger, ctx, "Failed to add book.", err, codes.Internal)
 		return nil, i.ConvertErr(err)
 	}
 
