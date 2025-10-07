@@ -247,7 +247,7 @@
         "name": {
           "type": "string"
         },
-        "authorId": {
+        "authorIds": {
           "type": "array",
           "items": {
             "type": "string"
@@ -272,7 +272,7 @@
         "name": {
           "type": "string"
         },
-        "authorId": {
+        "authorIds": {
           "type": "array",
           "items": {
             "type": "string"

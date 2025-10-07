@@ -3,15 +3,16 @@ package library
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+
 	"go.opentelemetry.io/otel/attribute"
+
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/project/library/internal/entity"
 	"github.com/project/library/internal/usecase/repository"
 )
 
-func (l *libraryImpl) AddBook(ctx context.Context, name string, authorIDs []string) (*entity.Book, error) {
+func (l *libraryImpl) AddBook(ctx context.Context, name string, authorIds []string) (*entity.Book, error) {
 	span := trace.SpanFromContext(ctx)
 	entity.SendLoggerInfo(l.logger, ctx, "Start to add book.", layerLib)
 
@@ -23,27 +24,25 @@ func (l *libraryImpl) AddBook(ctx context.Context, name string, authorIDs []stri
 		var txErr error
 		book, txErr = l.booksRepository.AddBook(ctx, &entity.Book{
 			Name:      name,
-			AuthorIDs: authorIDs,
+			AuthorIds: authorIds,
 		})
 		if txErr != nil {
-			span.RecordError(fmt.Errorf("error adding book to repostitory: %w", txErr))
-			//l.logger.Error("Error adding book to repository.", zap.Error(txErr))
+			entity.SendLoggerSpanError(l.logger, ctx, "Error adding book to repository.", layerLib, txErr)
 			return txErr
 		}
+
+		span.SetAttributes(attribute.String("book_id", book.Id))
 
 		serialized, txErr := json.Marshal(book)
 		if txErr != nil {
-			span.RecordError(fmt.Errorf("error serializing book data: %w", txErr))
-			//l.logger.Error("Error serializing book data.", zap.Error(txErr))
+			entity.SendLoggerSpanError(l.logger, ctx, "Error serializing book data.", layerLib, txErr)
 			return txErr
 		}
 
-		idempotencyKey := repository.OutboxKindBook.String() + "_" + book.ID
-		txErr = l.outboxRepository.SendMessage(
-			ctx, idempotencyKey, repository.OutboxKindBook, serialized)
+		idempotencyKey := repository.OutboxKindBook.String() + "_" + book.Id
+		txErr = l.outboxRepository.SendMessage(ctx, idempotencyKey, repository.OutboxKindBook, serialized)
 		if txErr != nil {
-			span.RecordError(fmt.Errorf("error sending message to outbox: %w", txErr))
-			//l.logger.Error("Error sending message to outbox.", zap.Error(txErr))
+			entity.SendLoggerSpanError(l.logger, ctx, "Error sending message to outbox.", layerLib, txErr)
 			return txErr
 		}
 
@@ -51,33 +50,30 @@ func (l *libraryImpl) AddBook(ctx context.Context, name string, authorIDs []stri
 
 		return nil
 	})
-
 	if err != nil {
-		span.RecordError(fmt.Errorf("Failed to add book to repository: %w", err))
-		//l.logger.Error("Failed to add book.", zap.Error(err))
+		entity.SendLoggerSpanError(l.logger, ctx, "Failed to add book.", layerLib, err)
 		return nil, err
 	}
 
-	span.SetAttributes(attribute.String("book_id", book.ID))
-	entity.SendLoggerInfoWithCondition(l.logger, ctx, "Book added.", layerLib, "book_id", book.ID)
+	entity.SendLoggerInfoWithCondition(l.logger, ctx, "Book added.", layerLib, "book_id", book.Id)
 
 	return book, nil
 }
 
-func (l *libraryImpl) GetBook(ctx context.Context, bookID string) (*entity.Book, error) {
+func (l *libraryImpl) GetBook(ctx context.Context, bookId string) (*entity.Book, error) {
 	entity.SendLoggerInfo(l.logger, ctx, "Start to get book.", layerLib)
 
-	return l.booksRepository.GetBook(ctx, bookID)
+	return l.booksRepository.GetBook(ctx, bookId)
 }
 
-func (l *libraryImpl) UpdateBook(ctx context.Context, bookID string, newBookName string, authorIDs []string) error {
+func (l *libraryImpl) UpdateBook(ctx context.Context, bookID string, newBookName string, authorIds []string) error {
 	entity.SendLoggerInfo(l.logger, ctx, "Start to update book.", layerLib)
 
-	return l.booksRepository.UpdateBook(ctx, bookID, newBookName, authorIDs)
+	return l.booksRepository.UpdateBook(ctx, bookID, newBookName, authorIds)
 }
 
-func (l *libraryImpl) GetAuthorBooks(ctx context.Context, authorID string) ([]*entity.Book, error) {
+func (l *libraryImpl) GetAuthorBooks(ctx context.Context, authorId string) ([]*entity.Book, error) {
 	entity.SendLoggerInfo(l.logger, ctx, "Start to get author books.", layerLib)
 
-	return l.booksRepository.GetAuthorBooks(ctx, authorID)
+	return l.booksRepository.GetAuthorBooks(ctx, authorId)
 }

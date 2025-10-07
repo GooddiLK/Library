@@ -15,6 +15,8 @@ import (
 	"github.com/project/library/internal/usecase/library/mocks"
 )
 
+var mockErr = errors.New("mock error")
+
 func TestConvertErr(t *testing.T) {
 	t.Parallel()
 

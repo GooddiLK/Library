@@ -1,4 +1,4 @@
-package controller_test
+package controller
 
 import (
 	"context"
@@ -51,17 +51,17 @@ func Test_GetAuthorBooks(t *testing.T) {
 		{
 			name: "get author books | ok",
 			req: &library.GetAuthorBooksRequest{
-				AuthorId: "7a948d89-108c-4133-be30-788bd453c0cd",
+				AuthorId: uuid9,
 			},
 			wantUsecaseReturn: []*entity.Book{
 				{
-					ID:        uuid.NewString(),
+					Id:        uuid.NewString(),
 					Name:      "Aboba1",
-					AuthorIDs: []string{"7a948d89-108c-4133-be30-788bd453c0cd", "f47ac10b-58cc-4372-a567-0e02b2c3d479"},
+					AuthorIds: []string{uuid9, uuid10},
 				}, {
-					ID:        uuid.NewString(),
+					Id:        uuid.NewString(),
 					Name:      "Aboba2",
-					AuthorIDs: []string{"7a948d89-108c-4133-be30-788bd453c0cd"},
+					AuthorIds: []string{uuid9},
 				},
 			},
 			wantErrCode: codes.OK,
@@ -69,11 +69,10 @@ func Test_GetAuthorBooks(t *testing.T) {
 			mocksUsed:   true,
 			server:      &mockLibraryGetAuthorBooksServer{},
 		},
-
 		{
 			name: "get author books | authors book not found(without error)",
 			req: &library.GetAuthorBooksRequest{
-				AuthorId: "7a948d89-108c-4133-be30-788bd453c0cd",
+				AuthorId: uuid8,
 			},
 			wantUsecaseReturn: []*entity.Book{},
 			wantErrCode:       codes.OK,
@@ -81,7 +80,6 @@ func Test_GetAuthorBooks(t *testing.T) {
 			mocksUsed:         true,
 			server:            &mockLibraryGetAuthorBooksServer{},
 		},
-
 		{
 			name: "get author books | uncorrected author id",
 			req: &library.GetAuthorBooksRequest{
@@ -89,18 +87,16 @@ func Test_GetAuthorBooks(t *testing.T) {
 			},
 			wantUsecaseReturn: []*entity.Book{},
 			wantErrCode:       codes.InvalidArgument,
-			wantErr:           status.Error(codes.InvalidArgument, " uncorrected author id"),
+			wantErr:           status.Error(codes.InvalidArgument, "uncorrected author id"),
 			mocksUsed:         false,
 			server:            &mockLibraryGetAuthorBooksServer{},
 		},
 	}
 
 	for _, test := range tests {
-		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Создаем моки внутри каждого субтеста
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -119,10 +115,9 @@ func Test_GetAuthorBooks(t *testing.T) {
 
 			if test.mocksUsed && test.server.books != nil {
 				for idx, book := range test.server.books {
-					assert.Equal(t, test.wantUsecaseReturn[idx].ID, book.GetId())
+					assert.Equal(t, test.wantUsecaseReturn[idx].Id, book.GetId())
 					assert.Equal(t, test.wantUsecaseReturn[idx].Name, book.GetName())
-					// Потенциально порядок не важен (но как он может измениться???)
-					assert.ElementsMatch(t, test.wantUsecaseReturn[idx].AuthorIDs, book.GetAuthorId())
+					assert.ElementsMatch(t, test.wantUsecaseReturn[idx].AuthorIds, book.GetAuthorIds())
 				}
 			}
 		})

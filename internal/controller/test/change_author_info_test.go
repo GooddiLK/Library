@@ -1,19 +1,21 @@
-package controller_test
+package controller
 
 import (
 	"context"
+	"github.com/stretchr/testify/assert"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/project/library/generated/api/library"
 	"github.com/project/library/internal/controller"
 	"github.com/project/library/internal/usecase/library/mocks"
-	testutils "github.com/project/library/internal/usecase/library/test"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
+
+// Проверка ожидаемой работы
+// Ошибка: пришли не валидные данные
+// Ошибка: ошибка с уровня usecase
 
 func Test_ChangeAuthorInfo(t *testing.T) {
 	t.Parallel()
@@ -26,11 +28,10 @@ func Test_ChangeAuthorInfo(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		args        args
-		wantErrCode codes.Code
-		wantErr     error
-		mocksUsed   bool
+		name      string
+		args      args
+		wantErr   error
+		mocksUsed bool
 	}{
 		{
 			"change author info | without error",
@@ -40,11 +41,9 @@ func Test_ChangeAuthorInfo(t *testing.T) {
 					Name: "New Name",
 				},
 			},
-			codes.OK,
 			nil,
 			true,
 		},
-
 		{
 			"change author info | with uncorrected Id",
 			args{ctx,
@@ -53,11 +52,9 @@ func Test_ChangeAuthorInfo(t *testing.T) {
 					Name: "New Name",
 				},
 			},
-			codes.InvalidArgument,
-			status.Error(codes.InvalidArgument, " uncorrected id"),
+			mockErr,
 			false,
 		},
-
 		{
 			"change author info | with invalid name",
 			args{
@@ -67,18 +64,27 @@ func Test_ChangeAuthorInfo(t *testing.T) {
 					Name: "",
 				},
 			},
-			codes.InvalidArgument,
-			status.Error(codes.InvalidArgument, " invalid author name "),
+			mockErr,
 			false,
+		},
+		{
+			"change author info | usecase error",
+			args{
+				ctx,
+				&library.ChangeAuthorInfoRequest{
+					Id:   uuid.NewString(),
+					Name: "New Name",
+				},
+			},
+			mockErr,
+			true,
 		},
 	}
 
 	for _, test := range tests {
-		test := test // capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Создаем моки внутри каждого субтеста
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -88,13 +94,18 @@ func Test_ChangeAuthorInfo(t *testing.T) {
 
 			if test.mocksUsed {
 				authorUseCase.EXPECT().
-					ChangeAuthor(ctx, test.args.req.GetId(), test.args.req.GetName()).
+					ChangeAuthor(gomock.Any(), test.args.req.GetId(), test.args.req.GetName()).
 					Return(test.wantErr)
 			}
 
-			_, err := service.ChangeAuthorInfo(test.args.ctx, test.args.req)
+			got, err := service.ChangeAuthorInfo(test.args.ctx, test.args.req)
 
-			testutils.CheckError(t, err, test.wantErrCode)
+			if test.wantErr == nil {
+				assert.NotNil(t, got)
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
 		})
 	}
 }

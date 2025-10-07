@@ -18,15 +18,15 @@ const layerLib = "usecase_library"
 type (
 	AuthorUseCase interface {
 		RegisterAuthor(ctx context.Context, authorName string) (*entity.Author, error)
-		GetAuthorInfo(ctx context.Context, authorID string) (*entity.Author, error)
-		ChangeAuthor(ctx context.Context, authorID string, newAuthorName string) error
+		GetAuthorInfo(ctx context.Context, authorId string) (*entity.Author, error)
+		ChangeAuthor(ctx context.Context, authorId string, newAuthorName string) error
 	}
 
 	BooksUseCase interface {
 		AddBook(ctx context.Context, name string, authorIDs []string) (*entity.Book, error)
-		GetBook(ctx context.Context, bookID string) (*entity.Book, error)
-		UpdateBook(ctx context.Context, bookID string, newBookName string, authorIDs []string) error
-		GetAuthorBooks(ctx context.Context, authorID string) ([]*entity.Book, error)
+		GetBook(ctx context.Context, bookId string) (*entity.Book, error)
+		UpdateBook(ctx context.Context, bookId string, newBookName string, authorIds []string) error
+		GetAuthorBooks(ctx context.Context, authorId string) ([]*entity.Book, error)
 	}
 )
 

@@ -6,7 +6,7 @@ import (
 )
 
 type Author struct {
-	ID   string
+	Id   string
 	Name string
 }
 

@@ -20,7 +20,7 @@ import (
 )
 
 var defaultAuthor = &entity.Author{
-	ID:   uuid.NewString(),
+	Id:   uuid.NewString(),
 	Name: "name",
 }
 
@@ -30,7 +30,7 @@ func TestRegisterAuthor(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	serialized, _ := json.Marshal(defaultAuthor)
-	idempotencyKey := repository.OutboxKindAuthor.String() + "_" + defaultAuthor.ID
+	idempotencyKey := repository.OutboxKindAuthor.String() + "_" + defaultAuthor.Id
 
 	tests := []struct {
 		name                  string
@@ -144,9 +144,9 @@ func TestGetAuthorInfo(t *testing.T) {
 				nil, nil, nil)
 			ctx := t.Context()
 
-			mockAuthorRepo.EXPECT().GetAuthorInfo(ctx, test.repositoryRerunAuthor.ID).Return(test.repositoryRerunAuthor, test.wantErr)
+			mockAuthorRepo.EXPECT().GetAuthorInfo(ctx, test.repositoryRerunAuthor.Id).Return(test.repositoryRerunAuthor, test.wantErr)
 
-			got, wantErr := useCase.GetAuthorInfo(ctx, test.repositoryRerunAuthor.ID)
+			got, wantErr := useCase.GetAuthorInfo(ctx, test.repositoryRerunAuthor.Id)
 			CheckError(t, wantErr, test.wantErrCode)
 			assert.Equal(t, test.repositoryRerunAuthor, got)
 		})
@@ -186,9 +186,9 @@ func TestChangeAuthor(t *testing.T) {
 				nil, nil, nil)
 			ctx := t.Context()
 
-			mockAuthorRepo.EXPECT().ChangeAuthor(ctx, test.repositoryRerunAuthor.ID, test.repositoryRerunAuthor.Name).Return(test.wantErr)
+			mockAuthorRepo.EXPECT().ChangeAuthor(ctx, test.repositoryRerunAuthor.Id, test.repositoryRerunAuthor.Name).Return(test.wantErr)
 
-			wantErr := useCase.ChangeAuthor(ctx, test.repositoryRerunAuthor.ID, test.repositoryRerunAuthor.Name)
+			wantErr := useCase.ChangeAuthor(ctx, test.repositoryRerunAuthor.Id, test.repositoryRerunAuthor.Name)
 			CheckError(t, wantErr, test.wantErrCode)
 		})
 	}

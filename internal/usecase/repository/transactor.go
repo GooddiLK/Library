@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/project/library/internal/entity"
 
+	"github.com/project/library/internal/entity"
+
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -42,8 +44,7 @@ func (t transactor) WithTx(
 
 	ctxWithTx, tx, err := injectTx(ctx, t.db)
 	if err != nil {
-		return fmt.Errorf(
-			"Can not inject transaction, error: %w", err)
+		return fmt.Errorf("Can not inject transaction, error: %w", err)
 	}
 
 	// В случае возникновения ошибки в процессе выполнения функции, транзакция отменяется.

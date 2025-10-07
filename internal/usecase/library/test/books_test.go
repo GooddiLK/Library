@@ -26,12 +26,12 @@ func TestAddBook(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	book := &entity.Book{
-		ID:        "book-id",
+		Id:        "book-id",
 		Name:      "Test Book",
-		AuthorIDs: []string{"author1", "author2"},
+		AuthorIds: []string{"author1", "author2"},
 	}
 	serialized, _ := json.Marshal(book)
-	idempotencyKey := repository.OutboxKindBook.String() + "_" + book.ID
+	idempotencyKey := repository.OutboxKindBook.String() + "_" + book.Id
 
 	tests := []struct {
 		name                string
@@ -88,7 +88,7 @@ func TestAddBook(t *testing.T) {
 					repository.OutboxKindBook, serialized).Return(test.outboxErr)
 			}
 
-			resultBook, err := useCase.AddBook(ctx, book.Name, book.AuthorIDs)
+			resultBook, err := useCase.AddBook(ctx, book.Name, book.AuthorIds)
 			switch {
 			case test.outboxErr == nil && test.repositoryErr == nil:
 				require.NoError(t, err)
@@ -117,17 +117,17 @@ func TestGetBook(t *testing.T) {
 		{
 			name: "get book",
 			returnBook: &entity.Book{
-				ID:        uuid.NewString(),
+				Id:        uuid.NewString(),
 				Name:      "name",
-				AuthorIDs: make([]string, 0),
+				AuthorIds: make([]string, 0),
 			},
 		},
 		{
 			name: "get book | with error",
 			returnBook: &entity.Book{
-				ID:        uuid.NewString(),
+				Id:        uuid.NewString(),
 				Name:      "name",
-				AuthorIDs: make([]string, 0),
+				AuthorIds: make([]string, 0),
 			},
 			wantErrCode: codes.Internal,
 			wantErr:     status.Error(codes.Internal, "error"),
@@ -144,10 +144,10 @@ func TestGetBook(t *testing.T) {
 				mockBookRepo, nil, nil)
 			ctx := t.Context()
 
-			mockBookRepo.EXPECT().GetBook(ctx, test.returnBook.ID).
+			mockBookRepo.EXPECT().GetBook(ctx, test.returnBook.Id).
 				Return(test.returnBook, test.wantErr)
 
-			got, err := useCase.GetBook(ctx, test.returnBook.ID)
+			got, err := useCase.GetBook(ctx, test.returnBook.Id)
 			CheckError(t, err, test.wantErrCode)
 			assert.Equal(t, test.returnBook, got)
 		})
@@ -168,17 +168,17 @@ func TestUpdateBook(t *testing.T) {
 		{
 			name: "update book",
 			returnBook: &entity.Book{
-				ID:        uuid.NewString(),
+				Id:        uuid.NewString(),
 				Name:      "name",
-				AuthorIDs: make([]string, 0),
+				AuthorIds: make([]string, 0),
 			},
 		},
 		{
 			name: "update book | with error",
 			returnBook: &entity.Book{
-				ID:        uuid.NewString(),
+				Id:        uuid.NewString(),
 				Name:      "name",
-				AuthorIDs: make([]string, 0),
+				AuthorIds: make([]string, 0),
 			},
 			wantErrCode: codes.NotFound,
 			wantErr:     entity.ErrBookNotFound,
@@ -196,11 +196,11 @@ func TestUpdateBook(t *testing.T) {
 			ctx := t.Context()
 
 			mockBookRepo.EXPECT().UpdateBook(ctx,
-				test.returnBook.ID, test.returnBook.Name, test.returnBook.AuthorIDs).
+				test.returnBook.Id, test.returnBook.Name, test.returnBook.AuthorIds).
 				Return(test.wantErr)
 
 			err := useCase.UpdateBook(ctx,
-				test.returnBook.ID, test.returnBook.Name, test.returnBook.AuthorIDs)
+				test.returnBook.Id, test.returnBook.Name, test.returnBook.AuthorIds)
 			CheckError(t, err, test.wantErrCode)
 		})
 	}
@@ -244,9 +244,9 @@ func TestGetAuthorBooks(t *testing.T) {
 				mockBooksRepo, nil, nil)
 			ctx := t.Context()
 
-			mockBooksRepo.EXPECT().GetAuthorBooks(ctx, test.repositoryRerunAuthor.ID).Return(test.returnBooks, test.wantErr)
+			mockBooksRepo.EXPECT().GetAuthorBooks(ctx, test.repositoryRerunAuthor.Id).Return(test.returnBooks, test.wantErr)
 
-			books, wantErr := useCase.GetAuthorBooks(ctx, test.repositoryRerunAuthor.ID)
+			books, wantErr := useCase.GetAuthorBooks(ctx, test.repositoryRerunAuthor.Id)
 			CheckError(t, wantErr, test.wantErrCode)
 			assert.Equal(t, test.returnBooks, books)
 		})
