@@ -2,6 +2,7 @@ package outbox
 
 import (
 	"context"
+	"github.com/prometheus/client_golang/prometheus"
 	"sync"
 	"time"
 
