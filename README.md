@@ -7,6 +7,8 @@
 
 Можно запустить локально, но Makefile полностью определен лишь для Linux и MacOS.
 
+## Детали реализации
+
 ![интерфейсы](docs/scheme/Interfaces.png)
 ![реализация](docs/scheme/Implementations.png)
 
